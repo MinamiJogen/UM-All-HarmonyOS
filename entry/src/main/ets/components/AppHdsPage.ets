@@ -14,8 +14,6 @@ import {
 } from '../common/theme/AppTheme';
 import { Haptics } from '../common/utils/Haptics';
 
-const HDS_MINI_TITLE_BAR_HEIGHT: number = 56;
-
 @Component
 export struct AppHdsPage {
   @Consume('appThemeMode') appThemeMode: number;
@@ -109,7 +107,7 @@ export struct AppHdsPage {
           materialLevel: this.materialLevel
         }
       },
-      avoidLayoutSafeArea: false,
+      avoidLayoutSafeArea: true,
       enableComponentSafeArea: false
     };
   }
@@ -117,13 +115,7 @@ export struct AppHdsPage {
   build() {
     HdsNavigation() {
       Column() {
-        Blank()
-          .height(HDS_MINI_TITLE_BAR_HEIGHT)
-        Column() {
-          this.content();
-        }
-        .width('100%')
-        .layoutWeight(1)
+        this.content();
       }
       .width('100%')
       .height('100%')
@@ -132,9 +124,12 @@ export struct AppHdsPage {
     .height('100%')
     .mode(NavigationMode.Stack)
     .titleBar(this.titleBarOptions())
+    .systemBarStyle({ statusBarContentColor: this.theme().textPrimary }, {
+      statusBarContentColor: this.theme().textPrimary
+    })
     .hideBackButton(false)
     .titleMode(HdsNavigationTitleMode.MINI)
-    .ignoreLayoutSafeArea([LayoutSafeAreaType.SYSTEM], [LayoutSafeAreaEdge.BOTTOM])
+    .ignoreLayoutSafeArea([LayoutSafeAreaType.SYSTEM], [LayoutSafeAreaEdge.TOP, LayoutSafeAreaEdge.BOTTOM])
     .backgroundColor(this.theme().bgColor)
   }
 }

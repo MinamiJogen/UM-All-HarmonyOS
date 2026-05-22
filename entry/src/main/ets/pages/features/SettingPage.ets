@@ -144,6 +144,9 @@ export struct SettingPage {
   }
 
   private startupStatusColor(): string {
+    if (this.startupState.backgroundRunning) {
+      return this.theme().themeColor;
+    }
     return this.startupState.hasWarning ? this.theme().warningColor : this.theme().successColor;
   }
 
@@ -161,6 +164,7 @@ export struct SettingPage {
     const nextStartupState: AppStartupState = {
       running: this.startupState.running,
       ready: this.startupState.ready,
+      backgroundRunning: this.startupState.backgroundRunning,
       hasWarning: this.startupState.hasWarning,
       message: this.startupState.message,
       localVersion: state.localVersion,
@@ -688,6 +692,8 @@ export struct SettingPage {
         this.RuntimeMessage()
       }
       .width('100%')
+      .constraintSize({ minHeight: '100%' })
+      .justifyContent(FlexAlign.Start)
       .padding({ left: 16, right: 16, bottom: 16 })
     }
     .layoutWeight(1)

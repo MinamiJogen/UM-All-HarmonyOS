@@ -29,6 +29,12 @@ import {
   ClubSection
 } from '../../models/Club';
 
+const CLUB_WATERFALL_MIN_COLUMNS: number = 2;
+const CLUB_WATERFALL_COLUMN_GAP: number = 10;
+const CLUB_WATERFALL_ROW_GAP: number = 12;
+const CLUB_WATERFALL_PREFERRED_ITEM_WIDTH: number = 104;
+const CLUB_TILE_HEIGHT: number = 124;
+
 @Component
 export struct ClubPage {
   @Consume('appPathStack') pathStack: NavPathStack;
@@ -42,6 +48,7 @@ export struct ClubPage {
   @State sections: ClubSection[] = [];
   @State showClubSheet: boolean = false;
   @State selectedClubName: string = '';
+  @State private waterfallWidth: number = 0;
   @BuilderParam topContent: () => void = this.EmptySlot;
   private loaded: boolean = false;
   private refreshHandler: InfoRefreshHandler = (): void => {
@@ -119,17 +126,89 @@ export struct ClubPage {
     this.showClubSheet = true;
   }
 
-  @Builder
-  Header(): void {
-    Row() {
-      Text(this.localized('組織', 'Clubs'))
-        .fontSize(20)
-        .fontWeight(FontWeight.Bold)
-        .fontColor(this.theme().textPrimary)
-        .layoutWeight(1)
+  private lengthToNumber(value: Length): number {
+    if (typeof value === 'number') {
+      return value;
     }
-    .width('100%')
-    .padding({ left: 16, right: 16, top: 12, bottom: 6 })
+    if (typeof value === 'string') {
+      const parsed = Number.parseFloat(value);
+      return Number.isFinite(parsed) ? parsed : 0;
+    }
+    return 0;
+  }
+
+  private updateWaterfallWidth(value: Length): void {
+    const nextWidth = this.lengthToNumber(value);
+    if (nextWidth <= 0) {
+      return;
+    }
+    if (Math.abs(nextWidth - this.waterfallWidth) >= 1) {
+      this.waterfallWidth = nextWidth;
+    }
+  }
+
+  private itemWidthForColumns(width: number, columns: number): number {
+    if (columns <= 0) {
+      return width;
+    }
+    return (width - CLUB_WATERFALL_COLUMN_GAP * (columns - 1)) / columns;
+  }
+
+  private waterfallColumnCount(): number {
+    if (this.waterfallWidth <= 0) {
+      return CLUB_WATERFALL_MIN_COLUMNS;
+    }
+    let bestColumns = CLUB_WATERFALL_MIN_COLUMNS;
+    let bestDistance = Math.abs(this.itemWidthForColumns(this.waterfallWidth, bestColumns) -
+      CLUB_WATERFALL_PREFERRED_ITEM_WIDTH);
+    const widestUsefulColumns = Math.max(
+      CLUB_WATERFALL_MIN_COLUMNS,
+      Math.ceil((this.waterfallWidth + CLUB_WATERFALL_COLUMN_GAP) /
+        (CLUB_WATERFALL_PREFERRED_ITEM_WIDTH + CLUB_WATERFALL_COLUMN_GAP)) + 1
+    );
+    for (let columns = CLUB_WATERFALL_MIN_COLUMNS + 1; columns <= widestUsefulColumns; columns++) {
+      const distance = Math.abs(this.itemWidthForColumns(this.waterfallWidth, columns) -
+        CLUB_WATERFALL_PREFERRED_ITEM_WIDTH);
+      if (distance < bestDistance) {
+        bestColumns = columns;
+        bestDistance = distance;
+      }
+    }
+    return bestColumns;
+  }
+
+  private waterfallColumnsTemplate(): string {
+    const columns = this.waterfallColumnCount();
+    let template = '';
+    for (let index = 0; index < columns; index++) {
+      template = template.length > 0 ? `${template} 1fr` : '1fr';
+    }
+    return template;
+  }
+
+  private sectionWaterfallHeight(section: ClubSection): number {
+    const columns = this.waterfallColumnCount();
+    const columnHeights: number[] = [];
+    for (let index = 0; index < columns; index++) {
+      columnHeights.push(0);
+    }
+    for (let itemIndex = 0; itemIndex < section.clubs.length; itemIndex++) {
+      let targetColumn = 0;
+      for (let columnIndex = 1; columnIndex < columns; columnIndex++) {
+        if (columnHeights[columnIndex] < columnHeights[targetColumn]) {
+          targetColumn = columnIndex;
+        }
+      }
+      if (columnHeights[targetColumn] > 0) {
+        columnHeights[targetColumn] += CLUB_WATERFALL_ROW_GAP;
+      }
+      columnHeights[targetColumn] += CLUB_TILE_HEIGHT;
+    }
+    let total = 0;
+    for (let index = 0; index < columnHeights.length; index++) {
+      total = Math.max(total, columnHeights[index]);
+    }
+    return Math.max(CLUB_TILE_HEIGHT, total);
   }
 
   @Builder
@@ -188,8 +267,7 @@ export struct ClubPage {
         this.ClubTileContent(club);
       }
     })
-    .width('31%')
-    .margin({ right: 6, bottom: 8 })
+    .height(CLUB_TILE_HEIGHT)
   }
 
   @Builder
@@ -219,16 +297,35 @@ export struct ClubPage {
   }
 
   @Builder
-  SectionView(section: ClubSection): void {
+  SectionWaterfall(section: ClubSection): void {
     Column() {
-      this.SectionHeader(section)
-      Flex({ wrap: FlexWrap.Wrap }) {
+      WaterFlow() {
         ForEach(section.clubs, (club: ClubInfo) => {
-          this.ClubTile(club);
+          FlowItem() {
+            this.ClubTile(club);
+          }
+          .width('100%')
         }, (club: ClubInfo, index: number) => (club._id ?? club.club_num.toString()) + index.toString())
       }
       .width('100%')
-      .padding({ left: 16, right: 10 })
+      .height(this.sectionWaterfallHeight(section))
+      .columnsTemplate(this.waterfallColumnsTemplate())
+      .columnsGap(CLUB_WATERFALL_COLUMN_GAP)
+      .rowsGap(CLUB_WATERFALL_ROW_GAP)
+      .onAreaChange((_oldValue: Area, newValue: Area) => {
+        this.updateWaterfallWidth(newValue.width);
+      })
+      .nestedScroll({ scrollForward: NestedScrollMode.PARENT_FIRST, scrollBackward: NestedScrollMode.SELF_FIRST })
+    }
+    .width('100%')
+    .padding({ left: 16, right: 16 })
+  }
+
+  @Builder
+  SectionView(section: ClubSection): void {
+    Column() {
+      this.SectionHeader(section)
+      this.SectionWaterfall(section)
     }
     .width('100%')
   }
@@ -272,7 +369,6 @@ export struct ClubPage {
       Scroll() {
         Column() {
           this.topContent()
-          this.Header()
           this.SearchBar()
           if (this.loading && this.clubs.length === 0) {
             Column() {
@@ -321,6 +417,7 @@ export struct ClubPage {
         }
         .width('100%')
         .constraintSize({ minHeight: '100%' })
+        .justifyContent(FlexAlign.Start)
       }
       .layoutWeight(1)
       .edgeEffect(EdgeEffect.Spring)
@@ -332,7 +429,8 @@ export struct ClubPage {
       height: SheetSize.LARGE,
       detents: [SheetSize.MEDIUM, SheetSize.LARGE],
       preferType: SheetType.BOTTOM,
-      scrollSizeMode: ScrollSizeMode.FOLLOW_DETENT,
+      mode: SheetMode.OVERLAY,
+      scrollSizeMode: ScrollSizeMode.CONTINUOUS,
       title: {
         title: this.selectedClubName.length > 0 ? this.selectedClubName : this.localized('組織詳情', 'Club Detail')
       },

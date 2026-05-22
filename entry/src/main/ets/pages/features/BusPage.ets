@@ -27,6 +27,13 @@ import {
   BusService
 } from '../../services/BusService';
 
+const BUS_LAYOUT_BREAKPOINT_MD: number = 600;
+const BUS_LAYOUT_BREAKPOINT_LG: number = 840;
+const BUS_ROUTE_MAP_WIDTH: number = 310;
+const BUS_ROUTE_MAP_HEIGHT: number = 600;
+const BUS_ROUTE_CARD_WIDTH: number = 338;
+const BUS_LAYOUT_GAP: number = 12;
+
 @Component
 export struct BusPage {
   @Consume('appPathStack') pathStack: NavPathStack;
@@ -40,6 +47,7 @@ export struct BusPage {
   @State showStopSheet: boolean = false;
   @State selectedStopCode: string = 'PGH';
   @State selectedStopTitle: string = 'PGH';
+  @State pageViewportWidth: number = 0;
   private timerId: number = -1;
 
   aboutToAppear(): void {
@@ -63,6 +71,47 @@ export struct BusPage {
 
   private localized(tcText: string, enText: string): string {
     return this.isEnglish() ? enText : tcText;
+  }
+
+  private lengthToNumber(value: Length): number {
+    if (typeof value === 'number') {
+      return value;
+    }
+    if (typeof value === 'string') {
+      const parsed: number = Number.parseFloat(value);
+      return Number.isFinite(parsed) ? parsed : 0;
+    }
+    return 0;
+  }
+
+  private updatePageViewportWidth(value: Length): void {
+    const nextWidth: number = this.lengthToNumber(value);
+    if (nextWidth > 0 && Math.abs(nextWidth - this.pageViewportWidth) >= 1) {
+      this.pageViewportWidth = nextWidth;
+    }
+  }
+
+  private isPhoneLayout(): boolean {
+    return this.pageViewportWidth <= 0 || this.pageViewportWidth < BUS_LAYOUT_BREAKPOINT_MD;
+  }
+
+  private isFoldLayout(): boolean {
+    return this.pageViewportWidth >= BUS_LAYOUT_BREAKPOINT_MD &&
+      this.pageViewportWidth < BUS_LAYOUT_BREAKPOINT_LG;
+  }
+
+  private stopButtonWidth(): string {
+    if (this.isPhoneLayout()) {
+      return '48%';
+    }
+    if (this.isFoldLayout()) {
+      return '23.5%';
+    }
+    return this.pageViewportWidth >= 1100 ? '48%' : '100%';
+  }
+
+  private positionsColumnWidth(): number {
+    return this.pageViewportWidth >= 1000 ? 260 : 220;
   }
 
   private getContext(): common.UIAbilityContext {
@@ -268,13 +317,10 @@ export struct BusPage {
     Column() {
       Stack() {
         Image($rawfile('img/Bus/bus_route.png'))
-          .width(310)
-          .height(600)
+          .width(BUS_ROUTE_MAP_WIDTH)
+          .height(BUS_ROUTE_MAP_HEIGHT)
           .objectFit(ImageFit.Contain)
 
-        this.MapInfoPanel()
-        this.MapDataSource()
-        this.MapLinkButton()
         this.MapCountdown()
 
         ForEach(this.loopState.positions, (position: BusPositionInfo, index: number) => {
@@ -285,16 +331,20 @@ export struct BusPage {
           this.MapStopLabel(stop)
         }, (stop: BusStopInfo) => stop.code)
       }
-      .width(310)
-      .height(600)
+      .width(BUS_ROUTE_MAP_WIDTH)
+      .height(BUS_ROUTE_MAP_HEIGHT)
       .alignContent(Alignment.TopStart)
+
+      this.MapInfoPanel()
+      this.MapDataSource()
 
       Text(this.localized('點擊站點可查看站點圖；點擊巴士圖標可手動刷新。', 'Tap a stop to view its photo. Tap a bus icon to refresh.'))
         .fontSize(12)
         .fontColor(this.theme().textTertiary)
         .lineHeight(18)
-        .width('100%')
-        .margin({ top: 10 })
+        .textAlign(TextAlign.Center)
+        .width(BUS_ROUTE_MAP_WIDTH)
+        .margin({ top: 8 })
     }
     .width('100%')
     .alignItems(HorizontalAlign.Center)
@@ -317,38 +367,34 @@ export struct BusPage {
           .fontColor(this.theme().textTertiary)
       }
     }
-    .width(160)
-    .padding({ left: 8, right: 8, top: 5, bottom: 5 })
-    .borderRadius(10)
-    .backgroundColor(this.theme().surfaceColor)
-    .position({ x: 65, y: 185 })
+    .width(BUS_ROUTE_MAP_WIDTH)
+    .padding({ left: 10, right: 10, top: 8, bottom: 8 })
+    .borderRadius(8)
+    .backgroundColor(this.theme().surfaceAltColor)
+    .margin({ top: 12 })
   }
 
   @Builder
   MapDataSource(): void {
-    Text('Data From: cmdo.um.edu.mo')
-      .fontSize(11)
-      .fontColor(this.theme().textTertiary)
-      .padding({ left: 8, right: 8, top: 5, bottom: 5 })
-      .borderRadius(10)
-      .backgroundColor(this.theme().surfaceColor)
-      .position({ x: 58, y: 585 })
-  }
-
-  @Builder
-  MapLinkButton(): void {
-    Button(this.localized('校園地圖', 'Map'))
-      .height(30)
-      .borderRadius(10)
-      .fontSize(11)
-      .fontWeight(FontWeight.Bold)
-      .fontColor(this.theme().themeColor)
-      .backgroundColor(this.theme().surfaceColor)
-      .padding({ left: 8, right: 8 })
-      .position({ x: 110, y: 350 })
-      .onClick(() => {
-        this.openMap();
-      })
+    Row() {
+      Text('Data From: cmdo.um.edu.mo')
+        .fontSize(11)
+        .fontColor(this.theme().textTertiary)
+        .layoutWeight(1)
+      Button(this.localized('校園地圖', 'Map'))
+        .height(28)
+        .borderRadius(8)
+        .fontSize(11)
+        .fontWeight(FontWeight.Bold)
+        .fontColor(this.theme().themeColor)
+        .backgroundColor(this.theme().themeColorUltraLight)
+        .padding({ left: 8, right: 8 })
+        .onClick(() => {
+          this.openMap();
+        })
+    }
+    .width(BUS_ROUTE_MAP_WIDTH)
+    .margin({ top: 10 })
   }
 
   @Builder
@@ -481,14 +527,14 @@ export struct BusPage {
         .textOverflow({ overflow: TextOverflow.Ellipsis })
         .margin({ top: 3 })
     }
-    .width(148)
+    .width(this.stopButtonWidth())
     .height(72)
     .justifyContent(FlexAlign.Center)
     .alignItems(HorizontalAlign.Center)
     .padding({ left: 8, right: 8 })
     .borderRadius(8)
     .backgroundColor(this.stopHasBus(stop) ? this.theme().secondThemeColor : this.theme().surfaceAltColor)
-    .margin({ right: 8, bottom: 8 })
+    .margin({ bottom: 8 })
     .onClick(() => {
       this.showStop(stop);
     })
@@ -520,6 +566,71 @@ export struct BusPage {
         this.StopsCardContent();
       }
     })
+  }
+
+  @Builder
+  PhoneBusLayout(): void {
+    Column({ space: BUS_LAYOUT_GAP }) {
+      this.RouteCard()
+      this.StopsCard()
+      this.PositionsCard()
+    }
+    .width('100%')
+  }
+
+  @Builder
+  FoldBusLayout(): void {
+    Column({ space: BUS_LAYOUT_GAP }) {
+      Row({ space: BUS_LAYOUT_GAP }) {
+        Column() {
+          this.RouteCard()
+        }
+        .width(BUS_ROUTE_CARD_WIDTH)
+
+        Column() {
+          this.StopsCard()
+        }
+        .layoutWeight(1)
+      }
+      .width('100%')
+      .alignItems(VerticalAlign.Top)
+
+      this.PositionsCard()
+    }
+    .width('100%')
+  }
+
+  @Builder
+  ExpandedBusLayout(): void {
+    Row({ space: BUS_LAYOUT_GAP }) {
+      Column() {
+        this.RouteCard()
+      }
+      .width(BUS_ROUTE_CARD_WIDTH)
+
+      Column() {
+        this.StopsCard()
+      }
+      .layoutWeight(1)
+
+      Column() {
+        this.PositionsCard()
+      }
+      .width(this.positionsColumnWidth())
+    }
+    .width('100%')
+    .alignItems(VerticalAlign.Top)
+  }
+
+  @Builder
+  ResponsiveBusLayout(): void {
+    if (this.isPhoneLayout()) {
+      this.PhoneBusLayout()
+    } else if (this.isFoldLayout()) {
+      this.FoldBusLayout()
+    } else {
+      this.ExpandedBusLayout()
+    }
   }
 
   @Builder
@@ -583,9 +694,11 @@ export struct BusPage {
           Blank()
             .height(ROOT_CONTENT_TOP_PADDING)
           this.InfoCard()
-          this.RouteCard()
-          this.PositionsCard()
-          this.StopsCard()
+          Column() {
+            this.ResponsiveBusLayout()
+          }
+          .width('100%')
+          .margin({ top: BUS_LAYOUT_GAP })
           if (this.errorMessage.length > 0) {
             Text(this.errorMessage)
               .fontSize(12)
@@ -596,7 +709,12 @@ export struct BusPage {
           }
         }
         .width('100%')
+        .constraintSize({ minHeight: '100%' })
+        .justifyContent(FlexAlign.Start)
         .padding({ left: 16, right: 16, bottom: 16 })
+        .onAreaChange((_oldValue: Area, newValue: Area) => {
+          this.updatePageViewportWidth(newValue.width);
+        })
       }
       .layoutWeight(1)
     }

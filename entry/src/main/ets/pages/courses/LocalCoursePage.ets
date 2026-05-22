@@ -697,6 +697,8 @@ export struct LocalCoursePage {
           }
         }
         .width('100%')
+        .constraintSize({ minHeight: '100%' })
+        .justifyContent(FlexAlign.Start)
         .padding({ left: 16, right: 16, bottom: 16 })
       }
       .layoutWeight(1)

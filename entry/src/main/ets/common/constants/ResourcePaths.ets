@@ -2,6 +2,7 @@ export const RAWFILE_COURSE_VERSION: string = 'UMCourses/courseVersion.json';
 export const RAWFILE_OFFER_COURSES: string = 'UMCourses/offerCourses.json';
 export const RAWFILE_COURSE_PLAN: string = 'UMCourses/coursePlan.json';
 export const RAWFILE_COURSE_PLAN_TIME: string = 'UMCourses/coursePlanTime.json';
+export const RAWFILE_APP_ENV: string = 'app.env';
 
 export const RAWFILE_APP_LOGO: string = 'img/logo.png';
 export const RAWFILE_APP_LOGO_ROUND: string = 'img/logo_round.png';

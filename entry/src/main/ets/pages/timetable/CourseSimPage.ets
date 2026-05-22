@@ -17,7 +17,6 @@ import {
 import { WEEK_DAY_CODES, getDateDayCode } from '../../common/utils/DateTime';
 import { Haptics } from '../../common/utils/Haptics';
 import { OpenLink } from '../../common/utils/OpenLink';
-import { AppBottomSheet } from '../../components/AppBottomSheet';
 import { AppCard } from '../../components/AppCard';
 import { AppDialog } from '../../components/AppDialog';
 import { AppEmptyState } from '../../components/AppEmptyState';
@@ -54,6 +53,10 @@ const TIME_FILTER_ALL: string = 'all';
 const TIME_FILTER_MORNING: string = 'morning';
 const TIME_FILTER_AFTERNOON: string = 'afternoon';
 const TIME_FILTER_EVENING: string = 'evening';
+const TIMETABLE_BREAKPOINT_MD: number = 600;
+const TIMETABLE_BREAKPOINT_LG: number = 840;
+const TIMETABLE_PHONE_MAX_VISIBLE_DAYS: number = 4;
+const TIMETABLE_MIN_DAY_COLUMN_WIDTH: number = 68;
 
 const TIMETABLE_COLORS: string[] = [
   '#C9E1F5',
@@ -150,6 +153,11 @@ function selectionKey(selection: TimetableSelection): string {
   return selection.courseCode + '-' + selection.section;
 }
 
+function lengthToNumber(value: Length): number {
+  const parsed: number = Number.parseFloat(value.toString());
+  return parsed > 0 ? parsed : 0;
+}
+
 @Component
 export struct CourseSimPage {
   @Consume('appPathStack') pathStack: NavPathStack;
@@ -179,6 +187,7 @@ export struct CourseSimPage {
   @State selectedDay: string = '';
   @State selectedTime: string = '';
   @State selectedConflict: boolean = false;
+  @State timetableViewportWidth: number = 0;
 
   aboutToAppear(): void {
     const params: AnalyticsParams = new AnalyticsParams();
@@ -221,6 +230,110 @@ export struct CourseSimPage {
 
   private todayCode(): string {
     return getDateDayCode(new Date());
+  }
+
+  private updateTimetableViewportWidth(width: Length): void {
+    const nextWidth: number = lengthToNumber(width);
+    if (nextWidth > 0 && Math.abs(nextWidth - this.timetableViewportWidth) >= 1) {
+      this.timetableViewportWidth = nextWidth;
+    }
+  }
+
+  private isPhoneTimetableLayout(): boolean {
+    return this.timetableViewportWidth <= 0 || this.timetableViewportWidth < TIMETABLE_BREAKPOINT_MD;
+  }
+
+  private isWideExpandedTimetableLayout(): boolean {
+    return this.timetableViewportWidth >= TIMETABLE_BREAKPOINT_LG;
+  }
+
+  private timetableHorizontalPadding(): number {
+    if (this.isPhoneTimetableLayout()) {
+      return 16;
+    }
+    return this.isWideExpandedTimetableLayout() ? 24 : 12;
+  }
+
+  private timetableDayGap(): number {
+    if (this.isPhoneTimetableLayout()) {
+      return 10;
+    }
+    return this.isWideExpandedTimetableLayout() ? 12 : 6;
+  }
+
+  private activeTimetableDays(): string[] {
+    const result: string[] = [];
+    for (let i = 0; i < WEEK_DAY_CODES.length; i++) {
+      const day: string = WEEK_DAY_CODES[i];
+      if (this.dayMeetingCount(day) > 0) {
+        result.push(day);
+      }
+    }
+    return result;
+  }
+
+  private visibleTimetableDays(): string[] {
+    if (this.isPhoneTimetableLayout()) {
+      return this.activeTimetableDays();
+    }
+    return WEEK_DAY_CODES;
+  }
+
+  private shouldScrollTimetableBoard(): boolean {
+    return this.isPhoneTimetableLayout() &&
+      this.visibleTimetableDays().length > TIMETABLE_PHONE_MAX_VISIBLE_DAYS;
+  }
+
+  private timetableDayColumnWidth(dayCount: number): number {
+    const fallbackWidth: number = this.isPhoneTimetableLayout() ? 390 : 720;
+    const viewportWidth: number = this.timetableViewportWidth > 0 ? this.timetableViewportWidth : fallbackWidth;
+    const visibleSlots: number = this.isPhoneTimetableLayout() ?
+    Math.min(Math.max(dayCount, 1), TIMETABLE_PHONE_MAX_VISIBLE_DAYS) : Math.max(dayCount, 1);
+    const horizontalPadding: number = this.timetableHorizontalPadding() * 2;
+    const totalGap: number = Math.max(0, visibleSlots - 1) * this.timetableDayGap();
+    const computedWidth: number = Math.floor((viewportWidth - horizontalPadding - totalGap) / visibleSlots);
+    return Math.max(TIMETABLE_MIN_DAY_COLUMN_WIDTH, computedWidth);
+  }
+
+  private timetableDayTitleSize(): number {
+    if (this.isWideExpandedTimetableLayout()) {
+      return 22;
+    }
+    return this.isPhoneTimetableLayout() ? 19 : 15;
+  }
+
+  private timetableFreeBlockHeight(): number {
+    return this.isWideExpandedTimetableLayout() ? 92 : 78;
+  }
+
+  private meetingCardPadding(): number {
+    return this.isWideExpandedTimetableLayout() ? 8 : 6;
+  }
+
+  private meetingCodePrefixSize(): number {
+    if (this.isWideExpandedTimetableLayout()) {
+      return 15;
+    }
+    return this.isPhoneTimetableLayout() ? 13 : 11;
+  }
+
+  private meetingCodeNumberSize(): number {
+    if (this.isWideExpandedTimetableLayout()) {
+      return 20;
+    }
+    return this.isPhoneTimetableLayout() ? 17 : 15;
+  }
+
+  private meetingMetaTextSize(): number {
+    return this.isWideExpandedTimetableLayout() ? 12 : 10;
+  }
+
+  private meetingTitleTextSize(): number {
+    return this.isWideExpandedTimetableLayout() ? 11 : 10;
+  }
+
+  private meetingTitleMaxLines(): number {
+    return this.isWideExpandedTimetableLayout() ? 3 : 2;
   }
 
   private dayFilterOptions(): AppSegmentOption[] {
@@ -457,10 +570,11 @@ export struct CourseSimPage {
 
   private openAddSheet(keyword: string): void {
     Haptics.trigger();
+    this.showMeetingSheet = false;
     if (keyword.length > 0) {
       this.searchText = keyword;
-      this.applySearch();
     }
+    this.applySearch();
     this.showAddSheet = true;
   }
 
@@ -475,6 +589,7 @@ export struct CourseSimPage {
     this.selectedDay = safeText(meeting.day);
     this.selectedTime = timeRange(meeting.timeFrom, meeting.timeTo);
     this.selectedConflict = meeting.conflict;
+    this.showAddSheet = false;
     this.showMeetingSheet = true;
   }
 
@@ -753,47 +868,60 @@ export struct CourseSimPage {
   }
 
   @Builder
-  DayColumn(day: string): void {
-    Column() {
-      Text(day)
-        .fontSize(22)
-        .fontWeight(FontWeight.Bold)
-        .fontColor(this.todayCode() === day ? this.theme().themeColor : this.theme().textTertiary)
-        .textAlign(TextAlign.Center)
-        .width('100%')
-        .margin({ bottom: 8 })
+  DayColumnContent(day: string): void {
+    Text(day)
+      .fontSize(this.timetableDayTitleSize())
+      .fontWeight(FontWeight.Bold)
+      .fontColor(this.todayCode() === day ? this.theme().themeColor : this.theme().textTertiary)
+      .textAlign(TextAlign.Center)
+      .width('100%')
+      .margin({ bottom: 8 })
 
-      if (this.dayMeetingCount(day) === 0) {
-        Column() {
-          Text(this.localized('無課', 'Free'))
-            .fontSize(13)
-            .fontColor(this.theme().textTertiary)
-        }
-        .height(92)
-        .width('100%')
-        .justifyContent(FlexAlign.Center)
-        .alignItems(HorizontalAlign.Center)
-        .backgroundColor(this.theme().surfaceColor)
-        .borderRadius(8)
-        .border({ width: 1, color: this.theme().borderColor })
-      } else {
-        ForEach(this.dayMeetings(day), (meeting: TimetableCourseMeeting, index: number) => {
-          if (index > 0) {
-            Text(this.breakText(meeting))
-              .fontSize(11)
-              .fontWeight(meeting.conflictWithPrevious ? FontWeight.Bold : FontWeight.Medium)
-              .fontColor(meeting.conflictWithPrevious ? this.theme().dangerColor : this.theme().textTertiary)
-              .textAlign(TextAlign.Center)
-              .width('100%')
-              .margin({ top: 4, bottom: 4 })
-          }
-          this.MeetingCard(meeting)
-        }, (meeting: TimetableCourseMeeting, index: number) =>
-        meeting.courseCode + meeting.section + meeting.day + safeText(meeting.timeFrom) + index.toString())
+    if (this.dayMeetingCount(day) === 0) {
+      Column() {
+        Text(this.localized('無課', 'Free'))
+          .fontSize(this.meetingMetaTextSize())
+          .fontColor(this.theme().textTertiary)
       }
+      .height(this.timetableFreeBlockHeight())
+      .width('100%')
+      .justifyContent(FlexAlign.Center)
+      .alignItems(HorizontalAlign.Center)
+      .backgroundColor(this.theme().surfaceColor)
+      .borderRadius(8)
+      .border({ width: 1, color: this.theme().borderColor })
+    } else {
+      ForEach(this.dayMeetings(day), (meeting: TimetableCourseMeeting, index: number) => {
+        if (index > 0) {
+          Text(this.breakText(meeting))
+            .fontSize(this.meetingMetaTextSize())
+            .fontWeight(meeting.conflictWithPrevious ? FontWeight.Bold : FontWeight.Medium)
+            .fontColor(meeting.conflictWithPrevious ? this.theme().dangerColor : this.theme().textTertiary)
+            .textAlign(TextAlign.Center)
+            .width('100%')
+            .margin({ top: 4, bottom: 4 })
+        }
+        this.MeetingCard(meeting)
+      }, (meeting: TimetableCourseMeeting, index: number) =>
+      meeting.courseCode + meeting.section + meeting.day + safeText(meeting.timeFrom) + index.toString())
     }
-    .width(144)
-    .alignItems(HorizontalAlign.Center)
+  }
+
+  @Builder
+  DayColumn(day: string, columnWidth: number, stretch: boolean): void {
+    if (stretch) {
+      Column() {
+        this.DayColumnContent(day)
+      }
+      .layoutWeight(1)
+      .alignItems(HorizontalAlign.Center)
+    } else {
+      Column() {
+        this.DayColumnContent(day)
+      }
+      .width(columnWidth)
+      .alignItems(HorizontalAlign.Center)
+    }
   }
 
   @Builder
@@ -801,36 +929,36 @@ export struct CourseSimPage {
     Column() {
       if (this.periodLabel(meeting).length > 0) {
         Text(this.periodLabel(meeting))
-          .fontSize(11)
+          .fontSize(this.meetingMetaTextSize())
           .fontWeight(FontWeight.Bold)
           .fontColor(this.theme().textSecondary)
           .margin({ bottom: 5 })
       }
 
       Text(meeting.courseCode.substring(0, 4))
-        .fontSize(15)
+        .fontSize(this.meetingCodePrefixSize())
         .fontWeight(FontWeight.Bold)
         .fontColor(this.theme().textPrimary)
         .opacity(0.78)
       Text(meeting.courseCode.substring(4))
-        .fontSize(20)
+        .fontSize(this.meetingCodeNumberSize())
         .fontWeight(FontWeight.Bold)
         .fontColor(this.theme().textPrimary)
       Text(meeting.section)
-        .fontSize(12)
+        .fontSize(this.meetingMetaTextSize())
         .fontWeight(FontWeight.Bold)
         .fontColor(this.theme().textSecondary)
         .margin({ top: 2 })
       Text(meeting.courseTitle)
-        .fontSize(11)
+        .fontSize(this.meetingTitleTextSize())
         .fontColor(this.theme().textSecondary)
         .textAlign(TextAlign.Center)
-        .maxLines(3)
+        .maxLines(this.meetingTitleMaxLines())
         .textOverflow({ overflow: TextOverflow.Ellipsis })
         .width('100%')
         .margin({ top: 6 })
       Text(safeText(meeting.classroom).length > 0 ? safeText(meeting.classroom) : '-')
-        .fontSize(12)
+        .fontSize(this.meetingMetaTextSize())
         .fontWeight(FontWeight.Bold)
         .fontColor(this.theme().textSecondary)
         .margin({ top: 6 })
@@ -838,16 +966,16 @@ export struct CourseSimPage {
         .textOverflow({ overflow: TextOverflow.Ellipsis })
       Row() {
         Text(safeText(meeting.timeFrom))
-          .fontSize(12)
+          .fontSize(this.meetingMetaTextSize())
           .fontWeight(FontWeight.Bold)
           .fontColor(this.theme().textPrimary)
         Text('...')
-          .fontSize(12)
+          .fontSize(this.meetingMetaTextSize())
           .fontColor(this.theme().textTertiary)
           .layoutWeight(1)
           .textAlign(TextAlign.Center)
         Text(safeText(meeting.timeTo))
-          .fontSize(12)
+          .fontSize(this.meetingMetaTextSize())
           .fontWeight(FontWeight.Bold)
           .fontColor(this.theme().textPrimary)
       }
@@ -856,7 +984,7 @@ export struct CourseSimPage {
 
       if (meeting.conflict) {
         Text(this.localized('衝突', 'Conflict'))
-          .fontSize(11)
+          .fontSize(this.meetingMetaTextSize())
           .fontWeight(FontWeight.Bold)
           .fontColor(Color.White)
           .padding({ left: 7, right: 7, top: 2, bottom: 2 })
@@ -866,7 +994,7 @@ export struct CourseSimPage {
       }
     }
     .width('100%')
-    .padding(8)
+    .padding(this.meetingCardPadding())
     .borderRadius(8)
     .backgroundColor(meeting.conflict ? '#FFD6D6' : colorForIndex(meeting.color))
     .border({ width: 1, color: meeting.conflict ? this.theme().dangerColor : this.theme().borderColor })
@@ -878,17 +1006,43 @@ export struct CourseSimPage {
 
   @Builder
   TimetableBoard(): void {
-    Scroll() {
-      Row({ space: 10 }) {
-        ForEach(WEEK_DAY_CODES, (day: string) => {
-          this.DayColumn(day)
+    if (this.shouldScrollTimetableBoard()) {
+      Scroll() {
+        Row({ space: this.timetableDayGap() }) {
+          ForEach(this.visibleTimetableDays(), (day: string) => {
+            this.DayColumn(day, this.timetableDayColumnWidth(this.visibleTimetableDays().length), false)
+          }, (day: string) => day)
+        }
+        .padding({
+          left: this.timetableHorizontalPadding(),
+          right: this.timetableHorizontalPadding(),
+          bottom: 16
+        })
+        .alignItems(VerticalAlign.Top)
+      }
+      .scrollable(ScrollDirection.Horizontal)
+      .edgeEffect(EdgeEffect.Spring)
+      .onAreaChange((_oldValue: Area, newValue: Area) => {
+        this.updateTimetableViewportWidth(newValue.width);
+      })
+    } else {
+      Row({ space: this.timetableDayGap() }) {
+        ForEach(this.visibleTimetableDays(), (day: string) => {
+          this.DayColumn(day, this.timetableDayColumnWidth(this.visibleTimetableDays().length),
+            !this.isPhoneTimetableLayout())
         }, (day: string) => day)
       }
-      .padding({ left: 16, right: 16, bottom: 16 })
+      .width('100%')
+      .padding({
+        left: this.timetableHorizontalPadding(),
+        right: this.timetableHorizontalPadding(),
+        bottom: 16
+      })
       .alignItems(VerticalAlign.Top)
+      .onAreaChange((_oldValue: Area, newValue: Area) => {
+        this.updateTimetableViewportWidth(newValue.width);
+      })
     }
-    .scrollable(ScrollDirection.Horizontal)
-    .edgeEffect(EdgeEffect.Spring)
   }
 
   @Builder
@@ -1225,7 +1379,7 @@ export struct CourseSimPage {
       .padding({ left: 16, right: 16, bottom: 6 })
     }
     .width('100%')
-    .constraintSize({ maxHeight: '100%' })
+    .height('100%')
     .edgeEffect(EdgeEffect.Spring)
     .nestedScroll({
       scrollForward: NestedScrollMode.PARENT_FIRST,
@@ -1248,12 +1402,21 @@ export struct CourseSimPage {
 
   @Builder
   MeetingActionSheetContent(): void {
-    AppCard({
-      cardPadding: 0,
-      content: (): void => {
-        this.MeetingActionCardContent();
+    Scroll() {
+      Column() {
+        AppCard({
+          cardPadding: 0,
+          content: (): void => {
+            this.MeetingActionCardContent();
+          }
+        })
       }
-    })
+      .width('100%')
+      .padding({ left: 16, right: 16, bottom: 18 })
+    }
+    .width('100%')
+    .height('100%')
+    .edgeEffect(EdgeEffect.Spring)
   }
 
   @Builder
@@ -1339,15 +1502,16 @@ export struct CourseSimPage {
             message: this.localized('正在讀取課程資料和已保存課表', 'Reading course data and saved selections')
           })
         }
-        .height(360)
-        .justifyContent(FlexAlign.Center)
-        .padding({ left: 16, right: 16 })
+        .width('100%')
+        .padding({ left: 16, right: 16, top: 16, bottom: 16 })
         if (!this.showBack) {
           Blank()
             .height(ROOT_CONTENT_BOTTOM_PADDING)
         }
       }
       .width('100%')
+      .constraintSize({ minHeight: '100%' })
+      .justifyContent(FlexAlign.Start)
     }
     .layoutWeight(1)
     .edgeEffect(EdgeEffect.Spring)
@@ -1372,14 +1536,16 @@ export struct CourseSimPage {
             }
           })
         }
-        .height(360)
-        .justifyContent(FlexAlign.Center)
+        .width('100%')
+        .padding({ left: 16, right: 16, top: 24, bottom: 16 })
         if (!this.showBack) {
           Blank()
             .height(ROOT_CONTENT_BOTTOM_PADDING)
         }
       }
       .width('100%')
+      .constraintSize({ minHeight: '100%' })
+      .justifyContent(FlexAlign.Start)
     }
     .layoutWeight(1)
     .edgeEffect(EdgeEffect.Spring)
@@ -1401,6 +1567,8 @@ export struct CourseSimPage {
         }
       }
       .width('100%')
+      .constraintSize({ minHeight: '100%' })
+      .justifyContent(FlexAlign.Start)
     }
     .layoutWeight(1)
     .edgeEffect(EdgeEffect.Spring)
@@ -1408,7 +1576,44 @@ export struct CourseSimPage {
 
   @Builder
   PageShell(): void {
-    Stack() {
+    Stack({ alignContent: Alignment.TopStart }) {
+      Column() {
+      }
+      .width(1)
+      .height(1)
+      .opacity(0)
+      .bindSheet($$this.showMeetingSheet, this.MeetingActionSheetContent(), {
+        height: SheetSize.MEDIUM,
+        detents: [SheetSize.MEDIUM, SheetSize.LARGE],
+        preferType: SheetType.BOTTOM,
+        mode: SheetMode.OVERLAY,
+        scrollSizeMode: ScrollSizeMode.CONTINUOUS,
+        title: {
+          title: this.selectedCourseCode.length > 0 ? this.selectedCourseCode :
+          this.localized('課節操作', 'Meeting actions')
+        },
+        backgroundColor: this.theme().bgColor,
+        showClose: true
+      })
+
+      Column() {
+      }
+      .width(1)
+      .height(1)
+      .opacity(0)
+      .bindSheet($$this.showAddSheet, this.AddSheetContent(), {
+        height: SheetSize.MEDIUM,
+        detents: [SheetSize.MEDIUM, SheetSize.LARGE],
+        preferType: SheetType.BOTTOM,
+        mode: SheetMode.OVERLAY,
+        scrollSizeMode: ScrollSizeMode.CONTINUOUS,
+        title: {
+          title: this.localized('搵課 / 加課', 'Search / Add courses')
+        },
+        backgroundColor: this.theme().bgColor,
+        showClose: true
+      })
+
       Column() {
         if (this.loading) {
           this.LoadingStateContent()
@@ -1423,6 +1628,8 @@ export struct CourseSimPage {
               this.FirstUseGuide()
             }
             .width('100%')
+            .constraintSize({ minHeight: '100%' })
+            .justifyContent(FlexAlign.Start)
           }
           .layoutWeight(1)
           .edgeEffect(EdgeEffect.Spring)
@@ -1432,32 +1639,14 @@ export struct CourseSimPage {
       }
       .width('100%')
       .height('100%')
+      .justifyContent(FlexAlign.Start)
       .backgroundColor(this.theme().bgColor)
-
-      AppBottomSheet({
-        visible: $showMeetingSheet,
-        title: this.selectedCourseCode.length > 0 ? this.selectedCourseCode : this.localized('課節操作', 'Meeting actions'),
-        closeText: this.localized('返回', 'Back'),
-        maxHeightPercent: 82,
-        content: (): void => {
-          this.MeetingActionSheetContent();
-        }
-      })
     }
     .width('100%')
     .height('100%')
     .backgroundColor(this.theme().bgColor)
-    .bindSheet($$this.showAddSheet, this.AddSheetContent(), {
-      height: SheetSize.MEDIUM,
-      detents: [SheetSize.MEDIUM, SheetSize.LARGE],
-      preferType: SheetType.BOTTOM,
-      mode: SheetMode.OVERLAY,
-      scrollSizeMode: ScrollSizeMode.CONTINUOUS,
-      title: {
-        title: this.localized('搵課 / 加課', 'Search / Add courses')
-      },
-      backgroundColor: this.theme().bgColor,
-      showClose: true
+    .onAreaChange((oldValue: Area, newValue: Area) => {
+      this.updateTimetableViewportWidth(newValue.width);
     })
   }
 
@@ -1474,9 +1663,10 @@ export struct CourseSimPage {
           this.pathStack.pop();
         },
         onPrimaryAction: (): void => {
-          this.showAddSheet = !this.showAddSheet;
           if (this.showAddSheet) {
-            this.applySearch();
+            this.showAddSheet = false;
+          } else {
+            this.openAddSheet('');
           }
         },
         content: (): void => {

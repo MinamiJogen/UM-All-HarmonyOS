@@ -277,6 +277,8 @@ export struct AllClubEventsPage {
           this.LoadMoreFooter()
         }
         .width('100%')
+        .constraintSize({ minHeight: '100%' })
+        .justifyContent(FlexAlign.Start)
       }
       .layoutWeight(1)
     }

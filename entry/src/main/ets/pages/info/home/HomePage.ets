@@ -73,9 +73,14 @@ function emptyHomeCourse(): TimetableHomeCacheItem {
 }
 
 function calendarValue(block: string, key: string): string {
-  const pattern: RegExp = new RegExp("'" + key + "'\\s*:\\s*'([^']*)'");
-  const match: RegExpExecArray | null = pattern.exec(block);
-  return match === null ? '' : match[1];
+  const singleQuotePattern: RegExp = new RegExp("'" + key + "'\\s*:\\s*'([^']*)'");
+  const singleQuoteMatch: RegExpExecArray | null = singleQuotePattern.exec(block);
+  if (singleQuoteMatch !== null) {
+    return singleQuoteMatch[1];
+  }
+  const doubleQuotePattern: RegExp = new RegExp("'" + key + "'\\s*:\\s*\"([^\"]*)\"");
+  const doubleQuoteMatch: RegExpExecArray | null = doubleQuotePattern.exec(block);
+  return doubleQuoteMatch === null ? '' : doubleQuoteMatch[1];
 }
 
 function parseHomeCalendar(text: string): HomeCalendarItem[] {
@@ -103,6 +108,12 @@ function parseHomeCalendar(text: string): HomeCalendarItem[] {
 function timestampOf(dateText: string): number {
   const timestamp: number = new Date(dateText).getTime();
   return Number.isNaN(timestamp) ? 0 : timestamp;
+}
+
+function startOfTodayTimestamp(): number {
+  const today: Date = new Date();
+  today.setHours(0, 0, 0, 0);
+  return today.getTime();
 }
 
 function pad2(value: number): string {
@@ -153,6 +164,7 @@ export struct HomePage {
       this.refresh(false);
     } else {
       this.reloadUpcomingCourse();
+      this.loadCalendar();
     }
   }
 
@@ -188,7 +200,7 @@ export struct HomePage {
 
   private async loadCalendar(): Promise<void> {
     if (this.calendarItems.length > 0) {
-      this.scrollCalendarToSelection();
+      this.selectCalendarIndex(this.resolveCalendarIndex(this.calendarItems));
       return;
     }
     this.calendarError = '';
@@ -199,39 +211,70 @@ export struct HomePage {
     }
     const items: HomeCalendarItem[] = parseHomeCalendar(textResult.data);
     this.calendarItems = items;
-    this.selectedCalendarIndex = this.resolveCalendarIndex(items);
-    this.scrollCalendarToSelection();
+    this.selectCalendarIndex(this.resolveCalendarIndex(items));
   }
 
   private resolveCalendarIndex(items: HomeCalendarItem[]): number {
     if (items.length === 0) {
       return 0;
     }
-    const now: number = Date.now();
-    const lastIndex: number = items.length - 1;
-    if (now >= timestampOf(items[lastIndex].startDate)) {
-      return lastIndex;
+    const todayStart: number = startOfTodayTimestamp();
+    const nextEssentialIndex: number = this.resolveNextCalendarIndex(items, todayStart, true);
+    if (nextEssentialIndex >= 0) {
+      return nextEssentialIndex;
     }
-    if (now < timestampOf(items[0].startDate)) {
-      return 0;
+    const nextCalendarIndex: number = this.resolveNextCalendarIndex(items, todayStart, false);
+    if (nextCalendarIndex >= 0) {
+      return nextCalendarIndex;
     }
+    return items.length - 1;
+  }
+
+  private resolveNextCalendarIndex(items: HomeCalendarItem[], minTimestamp: number, essentialOnly: boolean): number {
     for (let i = 0; i < items.length; i++) {
-      if (timestampOf(items[i].startDate) >= now) {
+      if (essentialOnly && !this.calendarIsEssential(items[i])) {
+        continue;
+      }
+      if (timestampOf(items[i].startDate) >= minTimestamp) {
         return i;
       }
     }
-    return lastIndex;
+    return -1;
+  }
+
+  private selectCalendarIndex(index: number): void {
+    if (this.calendarItems.length === 0) {
+      return;
+    }
+    const lastIndex: number = this.calendarItems.length - 1;
+    const safeIndex: number = Math.min(Math.max(index, 0), lastIndex);
+    this.selectedCalendarIndex = safeIndex;
+    this.scrollCalendarToSelection();
+  }
+
+  private selectCalendarOffset(offset: number): void {
+    this.selectCalendarIndex(this.selectedCalendarIndex + offset);
+  }
+
+  private canSelectCalendarOffset(offset: number): boolean {
+    const targetIndex: number = this.selectedCalendarIndex + offset;
+    return targetIndex >= 0 && targetIndex < this.calendarItems.length;
   }
 
   private scrollCalendarToSelection(): void {
     const targetOffset: number = Math.max(this.selectedCalendarIndex - 2, 0) * 56;
+    this.scrollCalendarToOffset(targetOffset, 80);
+    this.scrollCalendarToOffset(targetOffset, 240);
+  }
+
+  private scrollCalendarToOffset(targetOffset: number, delay: number): void {
     setTimeout(() => {
       this.calendarScroller.scrollTo({
         xOffset: targetOffset,
         yOffset: 0,
         animation: true
       });
-    }, 80);
+    }, delay);
   }
 
   private async refresh(showToast: boolean): Promise<void> {
@@ -412,26 +455,28 @@ export struct HomePage {
 
   @Builder
   HomeSearchBar(): void {
-    Row() {
-      Text(this.localized('搜索: 關於澳大的一切...', 'Search: everything about UM...'))
-        .fontSize(14)
-        .fontColor(this.theme().textTertiary)
-        .maxLines(1)
-        .textOverflow({ overflow: TextOverflow.Ellipsis })
-        .layoutWeight(1)
+    Column() {
+      Row() {
+        Text(this.localized('搜索: 關於澳大的一切...', 'Search: everything about UM...'))
+          .fontSize(14)
+          .fontColor(this.theme().textTertiary)
+          .maxLines(1)
+          .textOverflow({ overflow: TextOverflow.Ellipsis })
+          .layoutWeight(1)
+      }
+      .width('100%')
+      .height(40)
+      .borderRadius(8)
+      .backgroundColor(this.theme().surfaceColor)
+      .border({ width: 1, color: this.theme().themeColor })
+      .padding({ left: 12, right: 12 })
+      .alignItems(VerticalAlign.Center)
+      .onClick(() => {
+        this.showSearchSheet = true;
+      })
     }
-    .width('86%')
-    .constraintSize({ maxWidth: 390, minWidth: 280 })
-    .height(40)
-    .margin({ top: 10, bottom: 2 })
-    .borderRadius(8)
-    .backgroundColor(this.theme().surfaceColor)
-    .border({ width: 1, color: this.theme().themeColor })
-    .padding({ left: 12, right: 12 })
-    .alignItems(VerticalAlign.Center)
-    .onClick(() => {
-      this.showSearchSheet = true;
-    })
+    .width('100%')
+    .padding({ left: 16, right: 16, top: 10, bottom: 2 })
   }
 
   @Builder
@@ -450,21 +495,6 @@ export struct HomePage {
           }
         })
           .layoutWeight(1)
-
-        if (this.searchText.length > 0) {
-          Button('X')
-            .width(38)
-            .height(38)
-            .borderRadius(8)
-            .fontSize(13)
-            .fontWeight(FontWeight.Bold)
-            .fontColor(this.theme().themeColor)
-            .backgroundColor(this.theme().surfaceAltColor)
-            .margin({ left: 8 })
-            .onClick(() => {
-              this.updateSearch('');
-            })
-        }
 
         Button(this.localized('搜索', 'Search'))
           .width(64)
@@ -554,8 +584,7 @@ export struct HomePage {
     .justifyContent(FlexAlign.Center)
     .alignItems(HorizontalAlign.Center)
     .onClick(() => {
-      this.selectedCalendarIndex = index;
-      this.scrollCalendarToSelection();
+      this.selectCalendarIndex(index);
     })
   }
 
@@ -565,9 +594,13 @@ export struct HomePage {
       Row() {
         Text('<')
           .fontSize(16)
-          .fontColor(this.theme().textTertiary)
+          .fontColor(this.canSelectCalendarOffset(-1) ? this.theme().themeColor : this.theme().textTertiary)
           .width(20)
           .textAlign(TextAlign.Center)
+          .opacity(this.canSelectCalendarOffset(-1) ? 1 : 0.35)
+          .onClick(() => {
+            this.selectCalendarOffset(-1);
+          })
         Column() {
           Text(this.localized('校曆 Upcoming:', 'Calendar Upcoming:') + '\n' +
           this.calendarRangeText(this.calendarItems[this.selectedCalendarIndex]) +
@@ -585,12 +618,27 @@ export struct HomePage {
         .borderRadius(10)
         .backgroundColor(this.theme().themeColorUltraLight)
         .border({ width: 1, color: this.theme().themeColorUltraLight })
+        .gesture(
+          PanGesture({ direction: PanDirection.Horizontal })
+            .onActionEnd((event: GestureEvent): void => {
+              const offsetX: number = event.offsetX ?? 0;
+              if (offsetX > 36) {
+                this.selectCalendarOffset(-1);
+              } else if (offsetX < -36) {
+                this.selectCalendarOffset(1);
+              }
+            })
+        )
 
         Text('>')
           .fontSize(16)
-          .fontColor(this.theme().textTertiary)
+          .fontColor(this.canSelectCalendarOffset(1) ? this.theme().themeColor : this.theme().textTertiary)
           .width(20)
           .textAlign(TextAlign.Center)
+          .opacity(this.canSelectCalendarOffset(1) ? 1 : 0.35)
+          .onClick(() => {
+            this.selectCalendarOffset(1);
+          })
       }
       .width('100%')
       .margin({ top: 5 })
@@ -627,6 +675,9 @@ export struct HomePage {
         .scrollBar(BarState.Off)
         .edgeEffect(EdgeEffect.Spring)
         .width('100%')
+        .onAppear(() => {
+          this.scrollCalendarToSelection();
+        })
 
         this.CalendarSummary()
       }
@@ -654,9 +705,7 @@ export struct HomePage {
         this.UpcomingCourseContent();
       }
     })
-    .width('80%')
-    .constraintSize({ maxWidth: 430, minWidth: 280 })
-    .margin({ top: 3, bottom: 10 })
+    .margin({ left: 16, right: 16, top: 3, bottom: 10 })
   }
 
   @Builder
@@ -725,9 +774,7 @@ export struct HomePage {
         this.QuickActionsContent();
       }
     })
-    .width('80%')
-    .constraintSize({ maxWidth: 430, minWidth: 280 })
-    .margin({ bottom: 12 })
+    .margin({ left: 16, right: 16, bottom: 12 })
   }
 
   @Builder
@@ -960,6 +1007,7 @@ export struct HomePage {
         }
         .width('100%')
         .constraintSize({ minHeight: '100%' })
+        .justifyContent(FlexAlign.Start)
         .alignItems(HorizontalAlign.Center)
       }
       .layoutWeight(1)
@@ -970,6 +1018,8 @@ export struct HomePage {
     .backgroundColor(this.theme().bgColor)
     .bindSheet($$this.showSearchSheet, this.SearchSheetContent(), {
       height: SheetSize.MEDIUM,
+      mode: SheetMode.OVERLAY,
+      scrollSizeMode: ScrollSizeMode.CONTINUOUS,
       title: {
         title: this.localized('搜索', 'Search')
       },

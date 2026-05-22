@@ -29,6 +29,12 @@ import {
   OPEN_DATA_LOCALE_ZH_TW
 } from '../../models/News';
 
+const EVENT_WATERFALL_MIN_COLUMNS: number = 2;
+const EVENT_WATERFALL_COLUMN_GAP: number = 10;
+const EVENT_WATERFALL_ROW_GAP: number = 12;
+const EVENT_WATERFALL_PREFERRED_ITEM_WIDTH: number = 182;
+const EVENT_CARD_POSTER_HEIGHT: number = 116;
+
 @Component
 export struct UMEventPage {
   @Consume('appPathStack') pathStack: NavPathStack;
@@ -38,6 +44,7 @@ export struct UMEventPage {
   @State loading: boolean = true;
   @State errorMessage: string = '';
   @State events: UmEventItem[] = [];
+  @State private waterfallWidth: number = 0;
   @BuilderParam topContent: () => void = this.EmptySlot;
   private loaded: boolean = false;
   private refreshHandler: InfoRefreshHandler = (): void => {
@@ -79,16 +86,61 @@ export struct UMEventPage {
     return this.isEnglish() ? OPEN_DATA_LOCALE_EN_US : OPEN_DATA_LOCALE_ZH_TW;
   }
 
+  private compactStringLines(value: string): string {
+    const lines: string[] = value.split('\n');
+    const result: string[] = [];
+    for (let index = 0; index < lines.length; index++) {
+      const line: string = lines[index].trim();
+      if (line.length > 0) {
+        result.push(line);
+      }
+    }
+    return result.join('\n');
+  }
+
+  private compactLines(value: string | string[] | undefined | null): string {
+    if (value === undefined || value === null) {
+      return '';
+    }
+    if (typeof value === 'string') {
+      return this.compactStringLines(value);
+    }
+    if (Array.isArray(value)) {
+      const result: string[] = [];
+      for (let index = 0; index < value.length; index++) {
+        const rawValue = value[index];
+        if (typeof rawValue === 'string') {
+          const line: string = this.compactStringLines(rawValue);
+          if (line.length > 0) {
+            result.push(line);
+          }
+        }
+      }
+      return result.join('\n');
+    }
+    return '';
+  }
+
   private titleFor(item: UmEventItem): string {
     const detail: UmEventDetail | undefined =
       InfoFeedService.findDetail<UmEventDetail>(item.details, this.preferredLocale());
-    return detail?.title ?? this.localized('無標題活動', 'Untitled event');
+    const title: string = this.compactLines(detail?.title ?? '');
+    return title.length > 0 ? title : this.localized('無標題活動', 'Untitled event');
   }
 
   private venueFor(item: UmEventItem): string {
     const detail: UmEventDetail | undefined =
       InfoFeedService.findDetail<UmEventDetail>(item.details, this.preferredLocale());
-    return detail?.venues ?? detail?.venue ?? '';
+    return this.compactLines(detail?.venues ?? detail?.venue ?? '');
+  }
+
+  private dateLabelFor(item: UmEventItem): string {
+    const dateText: string = this.compactLines(InfoFeedService.formatMonthDay(item.common.dateFrom));
+    return dateText.length > 0 ? '@ ' + dateText : '';
+  }
+
+  private timeRangeFor(item: UmEventItem): string {
+    return this.compactLines(InfoFeedService.formatEventTimeRange(item));
   }
 
   private eventIsPast(item: UmEventItem): boolean {
@@ -122,17 +174,110 @@ export struct UMEventPage {
     this.pathStack.pushPathByName(ROUTE_UM_EVENT_DETAIL, null);
   }
 
-  @Builder
-  Header(): void {
-    Row() {
-      Text(this.localized('澳大活動', 'UM Events'))
-        .fontSize(20)
-        .fontWeight(FontWeight.Bold)
-        .fontColor(this.theme().textPrimary)
-        .layoutWeight(1)
+  private lengthToNumber(value: Length): number {
+    if (typeof value === 'number') {
+      return value;
     }
-    .width('100%')
-    .padding({ left: 16, right: 16, top: 12, bottom: 6 })
+    if (typeof value === 'string') {
+      const parsed = Number.parseFloat(value);
+      return Number.isFinite(parsed) ? parsed : 0;
+    }
+    return 0;
+  }
+
+  private updateWaterfallWidth(value: Length): void {
+    const nextWidth = this.lengthToNumber(value);
+    if (nextWidth <= 0) {
+      return;
+    }
+    if (Math.abs(nextWidth - this.waterfallWidth) >= 1) {
+      this.waterfallWidth = nextWidth;
+    }
+  }
+
+  private itemWidthForColumns(width: number, columns: number): number {
+    if (columns <= 0) {
+      return width;
+    }
+    return (width - EVENT_WATERFALL_COLUMN_GAP * (columns - 1)) / columns;
+  }
+
+  private waterfallColumnCount(): number {
+    if (this.waterfallWidth <= 0) {
+      return EVENT_WATERFALL_MIN_COLUMNS;
+    }
+    let bestColumns = EVENT_WATERFALL_MIN_COLUMNS;
+    let bestDistance = Math.abs(this.itemWidthForColumns(this.waterfallWidth, bestColumns) -
+      EVENT_WATERFALL_PREFERRED_ITEM_WIDTH);
+    const widestUsefulColumns = Math.max(
+      EVENT_WATERFALL_MIN_COLUMNS,
+      Math.ceil((this.waterfallWidth + EVENT_WATERFALL_COLUMN_GAP) /
+        (EVENT_WATERFALL_PREFERRED_ITEM_WIDTH + EVENT_WATERFALL_COLUMN_GAP)) + 1
+    );
+    for (let columns = EVENT_WATERFALL_MIN_COLUMNS + 1; columns <= widestUsefulColumns; columns++) {
+      const distance = Math.abs(this.itemWidthForColumns(this.waterfallWidth, columns) -
+        EVENT_WATERFALL_PREFERRED_ITEM_WIDTH);
+      if (distance < bestDistance) {
+        bestColumns = columns;
+        bestDistance = distance;
+      }
+    }
+    return bestColumns;
+  }
+
+  private waterfallColumnsTemplate(): string {
+    const columns = this.waterfallColumnCount();
+    let template = '';
+    for (let index = 0; index < columns; index++) {
+      template = template.length > 0 ? `${template} 1fr` : '1fr';
+    }
+    return template;
+  }
+
+  private hasPoster(item: UmEventItem): boolean {
+    return item.common.posterUrl !== undefined && item.common.posterUrl.length > 0;
+  }
+
+  private eventCardHeight(item: UmEventItem): number {
+    let height: number = 24;
+    const hasVenue: boolean = this.venueFor(item).length > 0;
+    const hasTimeRange: boolean = this.timeRangeFor(item).length > 0;
+    if (this.hasPoster(item)) {
+      height += EVENT_CARD_POSTER_HEIGHT + 10;
+    }
+    height += 20 + 8 + 63;
+    if (hasTimeRange) {
+      height += 41;
+    }
+    if (hasVenue) {
+      height += 38;
+    }
+    return height;
+  }
+
+  private eventWaterfallHeight(): number {
+    const columns = this.waterfallColumnCount();
+    const columnHeights: number[] = [];
+    for (let index = 0; index < columns; index++) {
+      columnHeights.push(0);
+    }
+    for (let itemIndex = 0; itemIndex < this.events.length; itemIndex++) {
+      let targetColumn = 0;
+      for (let columnIndex = 1; columnIndex < columns; columnIndex++) {
+        if (columnHeights[columnIndex] < columnHeights[targetColumn]) {
+          targetColumn = columnIndex;
+        }
+      }
+      if (columnHeights[targetColumn] > 0) {
+        columnHeights[targetColumn] += EVENT_WATERFALL_ROW_GAP;
+      }
+      columnHeights[targetColumn] += this.eventCardHeight(this.events[itemIndex]);
+    }
+    let total = 0;
+    for (let index = 0; index < columnHeights.length; index++) {
+      total = Math.max(total, columnHeights[index]);
+    }
+    return Math.max(180, total);
   }
 
   @Builder
@@ -146,17 +291,17 @@ export struct UMEventPage {
   }
 
   @Builder
-  EventRow(item: UmEventItem): void {
+  EventCard(item: UmEventItem): void {
     AppCard({
       clickable: true,
+      cardPadding: 0,
       onTap: (): void => {
         this.openEvent(item);
       },
       content: (): void => {
-        this.EventRowContent(item);
+        this.EventCardContent(item);
       }
     })
-    .margin({ left: 16, right: 16, bottom: 10 })
   }
 
   @Builder
@@ -171,30 +316,46 @@ export struct UMEventPage {
   }
 
   @Builder
-  EventRowContent(item: UmEventItem): void {
-    Row() {
-      Column() {
-        Row() {
-          Text('@ ' + InfoFeedService.formatMonthDay(item.common.dateFrom))
+  EventCardContent(item: UmEventItem): void {
+    Column() {
+      if (this.hasPoster(item)) {
+        AppNetworkImage({
+          src: InfoFeedService.normalizeImageUrl(item.common.posterUrl),
+          alt: this.localized('活動海報', 'Event poster'),
+          imageHeight: EVENT_CARD_POSTER_HEIGHT,
+          radius: 8
+        })
+        .width('100%')
+      }
+
+      Row() {
+        if (this.dateLabelFor(item).length > 0) {
+          Text(this.dateLabelFor(item))
             .fontSize(13)
             .fontWeight(FontWeight.Bold)
             .fontColor(this.eventIsPast(item) ? this.theme().textTertiary : this.theme().secondThemeColor)
             .layoutWeight(1)
-          this.EventBadge(item)
+        } else {
+          Blank()
+            .layoutWeight(1)
         }
+        this.EventBadge(item)
+      }
+      .width('100%')
+      .margin({ top: this.hasPoster(item) ? 10 : 0 })
+
+      Text(this.titleFor(item))
+        .fontSize(15)
+        .fontWeight(FontWeight.Bold)
+        .fontColor(this.theme().textPrimary)
+        .lineHeight(21)
+        .maxLines(3)
+        .textOverflow({ overflow: TextOverflow.Ellipsis })
+        .margin({ top: 8 })
         .width('100%')
 
-        Text(this.titleFor(item))
-          .fontSize(15)
-          .fontWeight(FontWeight.Bold)
-          .fontColor(this.theme().textPrimary)
-          .lineHeight(21)
-          .maxLines(3)
-          .textOverflow({ overflow: TextOverflow.Ellipsis })
-          .margin({ top: 8 })
-          .width('100%')
-
-        Text(InfoFeedService.formatEventTimeRange(item))
+      if (this.timeRangeFor(item).length > 0) {
+        Text(this.timeRangeFor(item))
           .fontSize(12)
           .fontColor(this.theme().textSecondary)
           .lineHeight(17)
@@ -202,33 +363,49 @@ export struct UMEventPage {
           .textOverflow({ overflow: TextOverflow.Ellipsis })
           .margin({ top: 7 })
           .width('100%')
-
-        if (this.venueFor(item).length > 0) {
-          Text(this.venueFor(item))
-            .fontSize(12)
-            .fontColor(this.theme().textTertiary)
-            .lineHeight(17)
-            .maxLines(2)
-            .textOverflow({ overflow: TextOverflow.Ellipsis })
-            .margin({ top: 4 })
-            .width('100%')
-        }
       }
-      .layoutWeight(1)
-      .alignItems(HorizontalAlign.Start)
-      .margin({ right: item.common.posterUrl ? 12 : 0 })
 
-      if (item.common.posterUrl) {
-        AppNetworkImage({
-          src: InfoFeedService.normalizeImageUrl(item.common.posterUrl),
-          alt: this.localized('活動海報', 'Event poster'),
-          imageHeight: 116,
-          radius: 8
-        })
-        .width(90)
+      if (this.venueFor(item).length > 0) {
+        Text(this.venueFor(item))
+          .fontSize(12)
+          .fontColor(this.theme().textTertiary)
+          .lineHeight(17)
+          .maxLines(2)
+          .textOverflow({ overflow: TextOverflow.Ellipsis })
+          .margin({ top: 4 })
+          .width('100%')
       }
     }
     .width('100%')
+    .padding(12)
+    .alignItems(HorizontalAlign.Start)
+  }
+
+  @Builder
+  EventWaterfall(): void {
+    if (this.events.length > 0) {
+      Column() {
+        WaterFlow() {
+          ForEach(this.events, (item: UmEventItem) => {
+            FlowItem() {
+              this.EventCard(item);
+            }
+            .width('100%')
+          }, (item: UmEventItem, index: number) => item._id + index.toString())
+        }
+        .width('100%')
+        .height(this.eventWaterfallHeight())
+        .columnsTemplate(this.waterfallColumnsTemplate())
+        .columnsGap(EVENT_WATERFALL_COLUMN_GAP)
+        .rowsGap(EVENT_WATERFALL_ROW_GAP)
+        .onAreaChange((_oldValue: Area, newValue: Area) => {
+          this.updateWaterfallWidth(newValue.width);
+        })
+        .nestedScroll({ scrollForward: NestedScrollMode.PARENT_FIRST, scrollBackward: NestedScrollMode.SELF_FIRST })
+      }
+      .width('100%')
+      .padding({ left: 16, right: 16 })
+    }
   }
 
   build() {
@@ -236,7 +413,6 @@ export struct UMEventPage {
       Scroll() {
         Column() {
           this.topContent()
-          this.Header()
           if (this.loading) {
             Column() {
               AppLoading({
@@ -262,15 +438,14 @@ export struct UMEventPage {
             .justifyContent(FlexAlign.Center)
           } else {
             this.SourceLabel()
-            ForEach(this.events, (item: UmEventItem) => {
-              this.EventRow(item);
-            }, (item: UmEventItem, index: number) => item._id + index.toString())
+            this.EventWaterfall()
           }
           Blank()
             .height(ROOT_CONTENT_BOTTOM_PADDING)
         }
         .width('100%')
         .constraintSize({ minHeight: '100%' })
+        .justifyContent(FlexAlign.Start)
       }
       .layoutWeight(1)
       .edgeEffect(EdgeEffect.Spring)

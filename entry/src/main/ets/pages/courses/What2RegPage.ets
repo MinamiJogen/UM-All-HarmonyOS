@@ -60,6 +60,10 @@ const COURSE_FILTER_OPTIONS: AppSegmentOption[] = [
   { key: COURSE_FILTER_OPTION_CMRE, label: 'CMRE' },
   { key: COURSE_FILTER_OPTION_GE, label: 'GE' }
 ];
+const COURSE_LIST_HORIZONTAL_PADDING: number = 16;
+const COURSE_GRID_COLUMN_GAP: number = 10;
+const COURSE_GRID_TWO_COLUMN_MIN_WIDTH: number = 640;
+const COURSE_GRID_THREE_COLUMN_MIN_WIDTH: number = 960;
 
 function safeText(value: string | undefined): string {
   return value ?? '';
@@ -94,6 +98,7 @@ export struct What2RegPage {
   @State selectedCourseTitleChi: string = '';
   @State selectedCourseUnit: string = '';
   @State selectedCourseDepartment: string = '';
+  @State private courseGridWidth: number = 0;
   private catalogState: CourseCatalogState | null = null;
 
   aboutToAppear(): void {
@@ -187,6 +192,60 @@ export struct What2RegPage {
       }
     }
     return 0;
+  }
+
+  private lengthToNumber(value: Length): number {
+    if (typeof value === 'number') {
+      return value;
+    }
+    if (typeof value === 'string') {
+      const parsed = Number.parseFloat(value);
+      return Number.isFinite(parsed) ? parsed : 0;
+    }
+    return 0;
+  }
+
+  private updateCourseGridWidth(value: Length): void {
+    const listWidth = this.lengthToNumber(value);
+    if (listWidth <= 0) {
+      return;
+    }
+    const nextWidth: number = Math.max(0, listWidth - COURSE_LIST_HORIZONTAL_PADDING * 2);
+    if (Math.abs(nextWidth - this.courseGridWidth) >= 1) {
+      this.courseGridWidth = nextWidth;
+    }
+  }
+
+  private courseGridColumnCount(): number {
+    if (this.courseGridWidth >= COURSE_GRID_THREE_COLUMN_MIN_WIDTH) {
+      return 3;
+    }
+    if (this.courseGridWidth >= COURSE_GRID_TWO_COLUMN_MIN_WIDTH) {
+      return 2;
+    }
+    return 1;
+  }
+
+  private courseGridColumnIndexes(): number[] {
+    const columns: number = this.courseGridColumnCount();
+    const result: number[] = [];
+    for (let index = 0; index < columns; index++) {
+      result.push(index);
+    }
+    return result;
+  }
+
+  private courseGridRowIndexes(): number[] {
+    const columns: number = this.courseGridColumnCount();
+    const result: number[] = [];
+    for (let index = 0; index < this.displayCourses.length; index += columns) {
+      result.push(index);
+    }
+    return result;
+  }
+
+  private hasCourseGridCell(rowStart: number, columnOffset: number): boolean {
+    return rowStart + columnOffset < this.displayCourses.length;
   }
 
   private departmentListFor(state: CourseCatalogState, facultyName: string): string[] {
@@ -418,7 +477,7 @@ export struct What2RegPage {
   }
 
   @Builder
-  SearchBar(): void {
+  SearchBar(horizontalInset: number): void {
     Row() {
       AppSearchField({
         placeholder: this.localized('試試 ECE / Electrical / 電機', 'Try ECE / Electrical / 電機'),
@@ -435,22 +494,6 @@ export struct What2RegPage {
       })
         .layoutWeight(1)
 
-      if (this.searchText.length > 0) {
-        Button('X')
-          .width(38)
-          .height(38)
-          .borderRadius(8)
-          .fontSize(13)
-          .fontWeight(FontWeight.Bold)
-          .fontColor(this.activeColor())
-          .backgroundColor(this.theme().surfaceAltColor)
-          .margin({ left: 8 })
-          .onClick(() => {
-            this.searchText = '';
-            this.applySearch();
-          })
-      }
-
       Button(this.localized('搜尋', 'Links'))
         .width(64)
         .height(38)
@@ -466,7 +509,7 @@ export struct What2RegPage {
         })
     }
     .width('100%')
-    .padding({ left: 16, right: 16, top: 4, bottom: 8 })
+    .padding({ left: horizontalInset, right: horizontalInset, top: 4, bottom: 8 })
   }
 
   @Builder
@@ -491,13 +534,13 @@ export struct What2RegPage {
   }
 
   @Builder
-  FilterPanel(): void {
+  FilterPanel(horizontalInset: number): void {
     AppCard({
       content: (): void => {
         this.FilterPanelContent();
       }
     })
-    .margin({ left: 16, right: 16, bottom: 10 })
+    .margin({ left: horizontalInset, right: horizontalInset, bottom: 10 })
   }
 
   @Builder
@@ -610,6 +653,32 @@ export struct What2RegPage {
   }
 
   @Builder
+  CourseGridCell(rowStart: number, columnOffset: number): void {
+    if (this.hasCourseGridCell(rowStart, columnOffset)) {
+      Column() {
+        this.CourseCard(this.displayCourses[rowStart + columnOffset]);
+      }
+      .layoutWeight(1)
+    } else {
+      Column() {
+      }
+      .layoutWeight(1)
+      .height(1)
+    }
+  }
+
+  @Builder
+  CourseGridRow(rowStart: number): void {
+    Row({ space: COURSE_GRID_COLUMN_GAP }) {
+      ForEach(this.courseGridColumnIndexes(), (columnOffset: number) => {
+        this.CourseGridCell(rowStart, columnOffset);
+      }, (columnOffset: number) => rowStart.toString() + '-' + columnOffset.toString())
+    }
+    .width('100%')
+    .alignItems(VerticalAlign.Top)
+  }
+
+  @Builder
   CourseCardContent(item: CourseCatalogItem): void {
     Column() {
       Row() {
@@ -682,7 +751,7 @@ export struct What2RegPage {
   }
 
   @Builder
-  ListHeader(): void {
+  ListHeader(horizontalInset: number): void {
     Column() {
       Row() {
         Text(this.listTitle())
@@ -709,7 +778,7 @@ export struct What2RegPage {
       }
     }
     .width('100%')
-    .padding({ left: 16, right: 16, bottom: 8 })
+    .padding({ left: horizontalInset, right: horizontalInset, bottom: 8 })
   }
 
   @Builder
@@ -751,15 +820,15 @@ export struct What2RegPage {
       }
 
       ListItem() {
-        this.SearchBar()
+        this.SearchBar(0)
       }
 
       ListItem() {
-        this.FilterPanel()
+        this.FilterPanel(0)
       }
 
       ListItem() {
-        this.ListHeader()
+        this.ListHeader(0)
       }
 
       if (this.displayCourses.length === 0) {
@@ -784,12 +853,11 @@ export struct What2RegPage {
           .padding({ left: 16, right: 16 })
         }
       } else {
-        ForEach(this.displayCourses, (item: CourseCatalogItem, index: number) => {
+        ForEach(this.courseGridRowIndexes(), (rowStart: number) => {
           ListItem() {
-            this.CourseCard(item);
+            this.CourseGridRow(rowStart);
           }
-        }, (item: CourseCatalogItem, index: number) => this.courseCode(item) + safeText(item.section) +
-        safeText(item.day) + safeText(item.timeFrom) + index.toString())
+        }, (rowStart: number) => rowStart.toString())
 
         ListItem() {
           this.FooterNote();
@@ -804,9 +872,12 @@ export struct What2RegPage {
       }
     }
     .layoutWeight(1)
-    .padding({ left: 16, right: 16 })
+    .padding({ left: COURSE_LIST_HORIZONTAL_PADDING, right: COURSE_LIST_HORIZONTAL_PADDING })
     .edgeEffect(EdgeEffect.Spring)
     .backgroundColor(this.theme().bgColor)
+    .onAreaChange((_oldValue: Area, newValue: Area) => {
+      this.updateCourseGridWidth(newValue.width);
+    })
   }
 
   @Builder
@@ -815,7 +886,7 @@ export struct What2RegPage {
       Column() {
         Blank()
           .height(ROOT_CONTENT_TOP_PADDING)
-        this.SearchBar()
+        this.SearchBar(16)
         Column() {
           AppLoading({
             title: this.localized('載入課程資料', 'Loading course data'),
@@ -829,6 +900,8 @@ export struct What2RegPage {
           .height(ROOT_CONTENT_BOTTOM_PADDING)
       }
       .width('100%')
+      .constraintSize({ minHeight: '100%' })
+      .justifyContent(FlexAlign.Start)
     }
     .layoutWeight(1)
     .edgeEffect(EdgeEffect.Spring)
@@ -841,7 +914,7 @@ export struct What2RegPage {
       Column() {
         Blank()
           .height(ROOT_CONTENT_TOP_PADDING)
-        this.SearchBar()
+        this.SearchBar(16)
         Column() {
           AppEmptyState({
             title: this.localized('無法讀取課程', 'Unable to load courses'),
@@ -858,6 +931,8 @@ export struct What2RegPage {
           .height(ROOT_CONTENT_BOTTOM_PADDING)
       }
       .width('100%')
+      .constraintSize({ minHeight: '100%' })
+      .justifyContent(FlexAlign.Start)
     }
     .layoutWeight(1)
     .edgeEffect(EdgeEffect.Spring)
@@ -937,12 +1012,21 @@ export struct What2RegPage {
 
   @Builder
   SearchActionSheetContent(): void {
-    AppCard({
-      cardPadding: 0,
-      content: (): void => {
-        this.SearchActionCardContent();
+    Scroll() {
+      Column() {
+        AppCard({
+          cardPadding: 0,
+          content: (): void => {
+            this.SearchActionCardContent();
+          }
+        })
       }
-    })
+      .width('100%')
+      .padding({ left: 16, right: 16, bottom: 18 })
+    }
+    .width('100%')
+    .height('100%')
+    .edgeEffect(EdgeEffect.Spring)
   }
 
   @Builder
@@ -1129,24 +1213,29 @@ export struct What2RegPage {
         }
       })
 
-      AppBottomSheet({
-        visible: $showSearchSheet,
-        title: this.searchText.trim(),
-        closeText: this.localized('返回', 'Back'),
-        content: (): void => {
-          this.SearchActionSheetContent();
-        }
-      })
-
     }
     .width('100%')
     .height('100%')
     .backgroundColor(this.theme().bgColor)
+    .bindSheet($$this.showSearchSheet, this.SearchActionSheetContent(), {
+      height: SheetSize.MEDIUM,
+      detents: [SheetSize.MEDIUM, SheetSize.LARGE],
+      preferType: SheetType.BOTTOM,
+      mode: SheetMode.OVERLAY,
+      scrollSizeMode: ScrollSizeMode.CONTINUOUS,
+      title: {
+        title: this.searchText.trim().length > 0 ? this.searchText.trim() :
+        this.localized('搜尋鏈接', 'Search links')
+      },
+      backgroundColor: this.theme().bgColor,
+      showClose: true
+    })
     .bindSheet($$this.showUpdateSheet, this.UpdateSheetContent(), {
       height: SheetSize.MEDIUM,
       detents: [SheetSize.MEDIUM, SheetSize.LARGE],
       preferType: SheetType.BOTTOM,
-      scrollSizeMode: ScrollSizeMode.FOLLOW_DETENT,
+      mode: SheetMode.OVERLAY,
+      scrollSizeMode: ScrollSizeMode.CONTINUOUS,
       title: {
         title: this.localized('課程數據更新', 'Course data update')
       },

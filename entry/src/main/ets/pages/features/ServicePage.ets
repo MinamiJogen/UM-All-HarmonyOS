@@ -31,6 +31,9 @@ import { AppToast } from '../../components/AppToast';
 import { AnalyticsParams, AnalyticsService } from '../../services/AnalyticsService';
 import { UmehHostService, UmehHostState } from '../../services/UmehHostService';
 
+const SERVICE_GRID_BASE_COLUMNS: number = 5;
+const SERVICE_GRID_PREFERRED_TILE_WIDTH: number = 68;
+
 @Component
 export struct ServicePage {
   @Consume('appPathStack') pathStack: NavPathStack;
@@ -41,6 +44,7 @@ export struct ServicePage {
   @StorageLink('serviceFeedbackSheetVisible') showFeedbackSheet: boolean = false;
   @State busyKey: string = '';
   @State currentUmehHost: string = UmehHostService.getCurrentHost();
+  @State private serviceGridWidth: number = 0;
 
   private theme(): AppThemeColors {
     return ThemeStore.resolveTheme(this.appThemeMode, this.systemColorMode);
@@ -161,6 +165,60 @@ export struct ServicePage {
     }
   }
 
+  private lengthToNumber(value: Length): number {
+    if (typeof value === 'number') {
+      return value;
+    }
+    if (typeof value === 'string') {
+      const parsed = Number.parseFloat(value);
+      return Number.isFinite(parsed) ? parsed : 0;
+    }
+    return 0;
+  }
+
+  private updateServiceGridWidth(value: Length): void {
+    const nextWidth = this.lengthToNumber(value);
+    if (nextWidth <= 0) {
+      return;
+    }
+    if (Math.abs(nextWidth - this.serviceGridWidth) >= 1) {
+      this.serviceGridWidth = nextWidth;
+    }
+  }
+
+  private serviceTileWidthForColumns(width: number, columns: number): number {
+    if (columns <= 0) {
+      return width;
+    }
+    return width / columns;
+  }
+
+  private serviceGridColumnCount(): number {
+    if (this.serviceGridWidth <= 0) {
+      return SERVICE_GRID_BASE_COLUMNS;
+    }
+    let bestColumns = SERVICE_GRID_BASE_COLUMNS;
+    let bestDistance = Math.abs(this.serviceTileWidthForColumns(this.serviceGridWidth, bestColumns) -
+      SERVICE_GRID_PREFERRED_TILE_WIDTH);
+    const widestUsefulColumns = Math.max(
+      SERVICE_GRID_BASE_COLUMNS,
+      Math.ceil(this.serviceGridWidth / SERVICE_GRID_PREFERRED_TILE_WIDTH) + 1
+    );
+    for (let columns = SERVICE_GRID_BASE_COLUMNS + 1; columns <= widestUsefulColumns; columns++) {
+      const distance = Math.abs(this.serviceTileWidthForColumns(this.serviceGridWidth, columns) -
+        SERVICE_GRID_PREFERRED_TILE_WIDTH);
+      if (distance < bestDistance) {
+        bestColumns = columns;
+        bestDistance = distance;
+      }
+    }
+    return bestColumns;
+  }
+
+  private serviceTileWidth(): string {
+    return (100 / this.serviceGridColumnCount()).toString() + '%';
+  }
+
   private async openExternal(url: string): Promise<void> {
     const success: boolean = await OpenLink.open(this.getContext(), url);
     if (!success) {
@@ -249,7 +307,7 @@ export struct ServicePage {
         .height(32)
         .margin({ top: 8 })
     }
-    .width('20%')
+    .width(this.serviceTileWidth())
     .height(90)
     .justifyContent(FlexAlign.Center)
     .alignItems(HorizontalAlign.Center)
@@ -294,6 +352,9 @@ export struct ServicePage {
       }
       .width('100%')
       .padding({ left: 4, right: 4, top: 12, bottom: 10 })
+      .onAreaChange((_oldValue: Area, newValue: Area) => {
+        this.updateServiceGridWidth(newValue.width);
+      })
     }
     .width('100%')
   }
@@ -350,6 +411,8 @@ export struct ServicePage {
               .height(ROOT_CONTENT_BOTTOM_PADDING)
           }
           .width('100%')
+          .constraintSize({ minHeight: '100%' })
+          .justifyContent(FlexAlign.Start)
           .padding({ left: 10, right: 10 })
         }
         .layoutWeight(1)

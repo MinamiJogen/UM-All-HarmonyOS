@@ -64,8 +64,20 @@ function okResult<T>(data: T): ServiceResult<T> {
   };
 }
 
-function safeString(value: string | undefined): string {
-  return value ?? '';
+function safeString(value: string | number | boolean | undefined | null): string {
+  if (value === undefined || value === null) {
+    return '';
+  }
+  if (typeof value === 'string') {
+    return value;
+  }
+  if (typeof value === 'number') {
+    return value.toString();
+  }
+  if (typeof value === 'boolean') {
+    return value ? 'true' : 'false';
+  }
+  return '';
 }
 
 function compareNumber(left: number, right: number): number {
@@ -85,8 +97,12 @@ function normalizeHttps(url: string): string {
   return url;
 }
 
+function normalizeTextInput(text: string): string {
+  return text.replace(/\u0000/g, '');
+}
+
 function decodeHtmlEntities(text: string): string {
-  return text
+  return normalizeTextInput(text)
     .replace(/&nbsp;/g, ' ')
     .replace(/&amp;/g, '&')
     .replace(/&lt;/g, '<')
@@ -96,7 +112,7 @@ function decodeHtmlEntities(text: string): string {
 }
 
 function stripHtmlToText(html: string): string {
-  return decodeHtmlEntities(html
+  return decodeHtmlEntities(normalizeTextInput(html)
     .replace(/<script[\s\S]*?<\/script>/gi, ' ')
     .replace(/<style[\s\S]*?<\/style>/gi, ' ')
     .replace(/<br\s*\/?>/gi, '\n')
@@ -125,27 +141,28 @@ function pushUniqueLink(links: HtmlLink[], link: HtmlLink): void {
 
 function extractLinks(html: string): HtmlLink[] {
   const links: HtmlLink[] = [];
+  const source: string = normalizeTextInput(html);
   const anchorRegex: RegExp = /<a[^>]+href=["']([^"']+)["'][^>]*>([\s\S]*?)<\/a>/gi;
-  let match: RegExpExecArray | null = anchorRegex.exec(html);
-  while (match !== null) {
+  let match: RegExpExecArray | null = anchorRegex.exec(source);
+  while (match !== null && links.length < 50) {
     const url: string = normalizeHttps(decodeHtmlEntities(match[1].trim()));
     const label: string = stripHtmlToText(match[2]).trim();
     pushUniqueLink(links, {
       label: label.length > 0 ? label : url,
       url: url
     });
-    match = anchorRegex.exec(html);
+    match = anchorRegex.exec(source);
   }
 
   const plainUrlRegex: RegExp = /(https?:\/\/[^\s<>"']+)/g;
-  match = plainUrlRegex.exec(html);
-  while (match !== null) {
+  match = plainUrlRegex.exec(source);
+  while (match !== null && links.length < 50) {
     const url: string = normalizeHttps(match[1].replace(/[),.;]+$/g, ''));
     pushUniqueLink(links, {
       label: url,
       url: url
     });
-    match = plainUrlRegex.exec(html);
+    match = plainUrlRegex.exec(source);
   }
   return links;
 }
@@ -430,11 +447,18 @@ export class InfoFeedService {
   }
 
   static simplifyHtml(html: string | undefined): SimplifiedHtmlContent {
-    const source: string = html ?? '';
-    return {
-      text: stripHtmlToText(source),
-      links: extractLinks(source)
-    };
+    try {
+      const source: string = normalizeTextInput(html ?? '');
+      return {
+        text: stripHtmlToText(source),
+        links: extractLinks(source)
+      };
+    } catch (_error) {
+      return {
+        text: '',
+        links: []
+      };
+    }
   }
 
   static imageUrlsForNews(item: NewsItem): string[] {

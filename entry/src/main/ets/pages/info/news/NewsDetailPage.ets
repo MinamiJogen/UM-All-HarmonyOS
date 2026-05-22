@@ -50,6 +50,8 @@ export struct NewsDetailPage {
   @State news: NewsItem = emptyNewsItem();
   @State hasNews: boolean = false;
   @State selectedLocale: string = OPEN_DATA_LOCALE_ZH_TW;
+  @State detailContentText: string = '';
+  @State detailContentLinks: HtmlLink[] = [];
 
   aboutToAppear(): void {
     const selected: NewsItem | null = InfoNavigationState.getSelectedNews();
@@ -59,6 +61,7 @@ export struct NewsDetailPage {
       const preferred: string = this.preferredLocale();
       const detail: NewsDetail | undefined = InfoFeedService.findDetail<NewsDetail>(selected.details, preferred);
       this.selectedLocale = detail ? preferred : (selected.details.length > 0 ? selected.details[0].locale : preferred);
+      this.refreshSimplifiedContent();
     }
     const params: AnalyticsParams = new AnalyticsParams();
     params.routeName = 'NewsDetail';
@@ -115,16 +118,58 @@ export struct NewsDetailPage {
     return InfoFeedService.findDetail<NewsDetail>(this.news.details, this.selectedLocale);
   }
 
+  private cleanStringText(value: string): string {
+    const lines: string[] = value.replace(/\u0000/g, '').split('\n');
+    const result: string[] = [];
+    for (let index = 0; index < lines.length; index++) {
+      const line: string = lines[index].trim();
+      if (line.length > 0) {
+        result.push(line);
+      }
+    }
+    return result.join('\n');
+  }
+
+  private cleanText(value: string | string[] | undefined | null): string {
+    if (value === undefined || value === null) {
+      return '';
+    }
+    if (typeof value === 'string') {
+      return this.cleanStringText(value);
+    }
+    if (Array.isArray(value)) {
+      const result: string[] = [];
+      for (let index = 0; index < value.length; index++) {
+        const rawValue = value[index];
+        if (typeof rawValue === 'string') {
+          const text: string = this.cleanStringText(rawValue);
+          if (text.length > 0) {
+            result.push(text);
+          }
+        }
+      }
+      return result.join('\n');
+    }
+    return '';
+  }
+
+  private refreshSimplifiedContent(): void {
+    const simplified = InfoFeedService.simplifyHtml(this.currentDetail()?.content);
+    this.detailContentText = this.cleanText(simplified.text);
+    this.detailContentLinks = simplified.links;
+  }
+
   private title(): string {
-    return this.currentDetail()?.title ?? this.localized('新聞詳情', 'News Detail');
+    const title: string = this.cleanText(this.currentDetail()?.title);
+    return title.length > 0 ? title : this.localized('新聞詳情', 'News Detail');
   }
 
   private contentText(): string {
-    return InfoFeedService.simplifyHtml(this.currentDetail()?.content).text;
+    return this.detailContentText;
   }
 
   private contentLinks(): HtmlLink[] {
-    return InfoFeedService.simplifyHtml(this.currentDetail()?.content).links;
+    return this.detailContentLinks;
   }
 
   private imageUrls(): string[] {
@@ -148,6 +193,7 @@ export struct NewsDetailPage {
           const options: OpenDataLocaleOption[] = this.localeOptions();
           if (index >= 0 && index < options.length) {
             this.selectedLocale = options[index].locale;
+            this.refreshSimplifiedContent();
           }
         }
       })
@@ -253,6 +299,8 @@ export struct NewsDetailPage {
         this.LinkList()
       }
       .width('100%')
+      .constraintSize({ minHeight: '100%' })
+      .justifyContent(FlexAlign.Start)
       .padding({ bottom: 16 })
     }
     .layoutWeight(1)

@@ -116,26 +116,35 @@ export struct RootTabs {
   }
 
   @Builder
-  StartupStatus() {
-    if (this.startupState.running || this.startupState.hasWarning) {
-      Row() {
-        Text(this.startupState.running ? this.text('bootstrap.LOADING', 'Initializing') : this.startupState.message)
-          .fontSize(12)
-          .fontColor(this.startupState.hasWarning ? this.theme().warningColor : this.theme().textSecondary)
-          .maxLines(1)
-          .textOverflow({ overflow: TextOverflow.Ellipsis })
-          .layoutWeight(1)
-        if (this.startupState.running) {
+  StartupLoadingDialog() {
+    if (this.startupState.running) {
+      Stack({ alignContent: Alignment.Center }) {
+        Column() {
           LoadingProgress()
-            .width(18)
-            .height(18)
+            .width(40)
+            .height(40)
             .color(this.theme().themeColor)
+          Text(this.text('bootstrap.LOADING', 'ARK ALL is initializing'))
+            .fontSize(15)
+            .fontWeight(FontWeight.Medium)
+            .fontColor(this.theme().textPrimary)
+            .textAlign(TextAlign.Center)
+            .maxLines(2)
+            .textOverflow({ overflow: TextOverflow.Ellipsis })
+            .margin({ top: 14 })
         }
+        .width(184)
+        .padding({ left: 20, right: 20, top: 24, bottom: 22 })
+        .borderRadius(16)
+        .backgroundColor(this.theme().surfaceColor)
+        .shadow(ShadowStyle.OUTER_DEFAULT_MD)
       }
-      .height(32)
       .width('100%')
-      .padding({ left: 16, right: 16 })
-      .backgroundColor(this.theme().surfaceColor)
+      .height('100%')
+      .backgroundColor(this.theme().isLight ? '#33000000' : '#66000000')
+      .hitTestBehavior(HitTestMode.Block)
+      .zIndex(1000)
+      .transition(TransitionEffect.OPACITY)
     }
   }
 
@@ -308,14 +317,13 @@ export struct RootTabs {
           materialLevel: this.customMaterialLevel
         }
       },
-      avoidLayoutSafeArea: false,
+      avoidLayoutSafeArea: true,
       enableComponentSafeArea: false
     };
   }
 
   build() {
-    Column() {
-      this.StartupStatus()
+    Stack({ alignContent: Alignment.Center }) {
       HdsNavigation() {
         HdsTabs({ barPosition: BarPosition.End, index: this.currentIndex }) {
           TabContent() {
@@ -381,11 +389,16 @@ export struct RootTabs {
       }
       .layoutWeight(1)
       .width('100%')
+      .height('100%')
       .mode(NavigationMode.Stack)
       .titleBar(this.currentTitleBarOptions())
+      .systemBarStyle({ statusBarContentColor: this.theme().textPrimary }, {
+        statusBarContentColor: this.theme().textPrimary
+      })
       .hideBackButton(true)
       .titleMode(HdsNavigationTitleMode.MINI)
-      .ignoreLayoutSafeArea([LayoutSafeAreaType.SYSTEM], [LayoutSafeAreaEdge.BOTTOM])
+      .ignoreLayoutSafeArea([LayoutSafeAreaType.SYSTEM], [LayoutSafeAreaEdge.TOP, LayoutSafeAreaEdge.BOTTOM])
+      this.StartupLoadingDialog()
     }
     .width('100%')
     .height('100%')

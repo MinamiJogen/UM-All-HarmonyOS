@@ -41,6 +41,12 @@ function emptyNewsItem(): NewsItem {
   };
 }
 
+const NEWS_WATERFALL_MIN_COLUMNS: number = 2;
+const NEWS_WATERFALL_COLUMN_GAP: number = 10;
+const NEWS_WATERFALL_ROW_GAP: number = 12;
+const NEWS_WATERFALL_PREFERRED_ITEM_WIDTH: number = 176;
+const NEWS_CARD_IMAGE_HEIGHT: number = 118;
+
 @Component
 export struct NewsPage {
   @Consume('appPathStack') pathStack: NavPathStack;
@@ -52,6 +58,7 @@ export struct NewsPage {
   @State topNews: NewsItem = emptyNewsItem();
   @State hasTopNews: boolean = false;
   @State newsList: NewsItem[] = [];
+  @State private waterfallWidth: number = 0;
   @BuilderParam topContent: () => void = this.EmptySlot;
   private loaded: boolean = false;
   private refreshHandler: InfoRefreshHandler = (): void => {
@@ -137,17 +144,98 @@ export struct NewsPage {
     this.pathStack.pushPathByName(ROUTE_NEWS_DETAIL, null);
   }
 
-  @Builder
-  Header(): void {
-    Row() {
-      Text(this.localized('澳大新聞', 'UM News'))
-        .fontSize(20)
-        .fontWeight(FontWeight.Bold)
-        .fontColor(this.theme().textPrimary)
-        .layoutWeight(1)
+  private lengthToNumber(value: Length): number {
+    if (typeof value === 'number') {
+      return value;
     }
-    .width('100%')
-    .padding({ left: 16, right: 16, top: 12, bottom: 6 })
+    if (typeof value === 'string') {
+      const parsed = Number.parseFloat(value);
+      return Number.isFinite(parsed) ? parsed : 0;
+    }
+    return 0;
+  }
+
+  private updateWaterfallWidth(value: Length): void {
+    const nextWidth = this.lengthToNumber(value);
+    if (nextWidth <= 0) {
+      return;
+    }
+    if (Math.abs(nextWidth - this.waterfallWidth) >= 1) {
+      this.waterfallWidth = nextWidth;
+    }
+  }
+
+  private itemWidthForColumns(width: number, columns: number): number {
+    if (columns <= 0) {
+      return width;
+    }
+    return (width - NEWS_WATERFALL_COLUMN_GAP * (columns - 1)) / columns;
+  }
+
+  private waterfallColumnCount(): number {
+    if (this.waterfallWidth <= 0) {
+      return NEWS_WATERFALL_MIN_COLUMNS;
+    }
+    let bestColumns = NEWS_WATERFALL_MIN_COLUMNS;
+    let bestDistance = Math.abs(this.itemWidthForColumns(this.waterfallWidth, bestColumns) -
+      NEWS_WATERFALL_PREFERRED_ITEM_WIDTH);
+    const widestUsefulColumns = Math.max(
+      NEWS_WATERFALL_MIN_COLUMNS,
+      Math.ceil((this.waterfallWidth + NEWS_WATERFALL_COLUMN_GAP) /
+        (NEWS_WATERFALL_PREFERRED_ITEM_WIDTH + NEWS_WATERFALL_COLUMN_GAP)) + 1
+    );
+    for (let columns = NEWS_WATERFALL_MIN_COLUMNS + 1; columns <= widestUsefulColumns; columns++) {
+      const distance = Math.abs(this.itemWidthForColumns(this.waterfallWidth, columns) -
+        NEWS_WATERFALL_PREFERRED_ITEM_WIDTH);
+      if (distance < bestDistance) {
+        bestColumns = columns;
+        bestDistance = distance;
+      }
+    }
+    return bestColumns;
+  }
+
+  private waterfallColumnsTemplate(): string {
+    const columns = this.waterfallColumnCount();
+    let template = '';
+    for (let index = 0; index < columns; index++) {
+      template = template.length > 0 ? `${template} 1fr` : '1fr';
+    }
+    return template;
+  }
+
+  private newsCardHeight(item: NewsItem): number {
+    const hasImage: boolean = this.firstImage(item).length > 0;
+    const hasSecondaryTitle: boolean = this.secondaryTitleFor(item).length > 0;
+    if (hasImage) {
+      return hasSecondaryTitle ? 286 : 244;
+    }
+    return hasSecondaryTitle ? 166 : 132;
+  }
+
+  private newsWaterfallHeight(): number {
+    const columns = this.waterfallColumnCount();
+    const columnHeights: number[] = [];
+    for (let index = 0; index < columns; index++) {
+      columnHeights.push(0);
+    }
+    for (let itemIndex = 0; itemIndex < this.newsList.length; itemIndex++) {
+      let targetColumn = 0;
+      for (let columnIndex = 1; columnIndex < columns; columnIndex++) {
+        if (columnHeights[columnIndex] < columnHeights[targetColumn]) {
+          targetColumn = columnIndex;
+        }
+      }
+      if (columnHeights[targetColumn] > 0) {
+        columnHeights[targetColumn] += NEWS_WATERFALL_ROW_GAP;
+      }
+      columnHeights[targetColumn] += this.newsCardHeight(this.newsList[itemIndex]);
+    }
+    let total = 0;
+    for (let index = 0; index < columnHeights.length; index++) {
+      total = Math.max(total, columnHeights[index]);
+    }
+    return Math.max(180, total);
   }
 
   @Builder
@@ -227,62 +315,94 @@ export struct NewsPage {
   }
 
   @Builder
-  NewsRow(item: NewsItem): void {
+  NewsCard(item: NewsItem): void {
     AppCard({
       clickable: true,
+      cardPadding: 0,
       onTap: (): void => {
         this.openNews(item);
       },
       content: (): void => {
-        this.NewsRowContent(item);
+        this.NewsCardContent(item);
       }
     })
-    .margin({ left: 16, right: 16, bottom: 10 })
+    .height(this.newsCardHeight(item))
   }
 
   @Builder
-  NewsRowContent(item: NewsItem): void {
-    Row() {
-      Column() {
-        Text(this.titleFor(item))
-          .fontSize(15)
-          .fontWeight(FontWeight.Bold)
-          .fontColor(this.theme().textPrimary)
-          .lineHeight(21)
-          .maxLines(3)
-          .textOverflow({ overflow: TextOverflow.Ellipsis })
-          .width('100%')
-        if (this.secondaryTitleFor(item).length > 0) {
-          Text(this.secondaryTitleFor(item))
-            .fontSize(13)
-            .fontColor(this.theme().textSecondary)
-            .lineHeight(18)
-            .maxLines(2)
-            .textOverflow({ overflow: TextOverflow.Ellipsis })
-            .margin({ top: 5 })
-            .width('100%')
-        }
-        Text('@ ' + InfoFeedService.formatMonthDay(item.common.publishDate))
-          .fontSize(13)
-          .fontWeight(FontWeight.Bold)
-          .fontColor(this.theme().textTertiary)
-          .margin({ top: 9 })
-      }
-      .layoutWeight(1)
-      .alignItems(HorizontalAlign.Start)
-      .margin({ right: this.firstImage(item).length > 0 ? 12 : 0 })
-
+  NewsCardContent(item: NewsItem): void {
+    Column() {
       if (this.firstImage(item).length > 0) {
         AppNetworkImage({
           src: this.firstImage(item),
           alt: this.localized('新聞圖片', 'News image'),
-          imageHeight: 104,
+          imageHeight: NEWS_CARD_IMAGE_HEIGHT,
           radius: 8
         })
-        .width(88)
+        .width('100%')
       }
+
+      Text(this.titleFor(item))
+        .fontSize(15)
+        .fontWeight(FontWeight.Bold)
+        .fontColor(this.theme().textPrimary)
+        .lineHeight(21)
+        .maxLines(3)
+        .textOverflow({ overflow: TextOverflow.Ellipsis })
+        .margin({ top: this.firstImage(item).length > 0 ? 10 : 0 })
+        .width('100%')
+
+      if (this.secondaryTitleFor(item).length > 0) {
+        Text(this.secondaryTitleFor(item))
+          .fontSize(13)
+          .fontColor(this.theme().textSecondary)
+          .lineHeight(18)
+          .maxLines(2)
+          .textOverflow({ overflow: TextOverflow.Ellipsis })
+          .margin({ top: 5 })
+          .width('100%')
+      }
+
+      Blank()
+        .layoutWeight(1)
+
+      Text('@ ' + InfoFeedService.formatMonthDay(item.common.publishDate))
+        .fontSize(13)
+        .fontWeight(FontWeight.Bold)
+        .fontColor(this.theme().textTertiary)
+        .margin({ top: 8 })
     }
     .width('100%')
+    .height('100%')
+    .padding(12)
+    .alignItems(HorizontalAlign.Start)
+  }
+
+  @Builder
+  NewsWaterfall(): void {
+    if (this.newsList.length > 0) {
+      Column() {
+        WaterFlow() {
+          ForEach(this.newsList, (item: NewsItem) => {
+            FlowItem() {
+              this.NewsCard(item);
+            }
+            .width('100%')
+          }, (item: NewsItem, index: number) => item._id + index.toString())
+        }
+        .width('100%')
+        .height(this.newsWaterfallHeight())
+        .columnsTemplate(this.waterfallColumnsTemplate())
+        .columnsGap(NEWS_WATERFALL_COLUMN_GAP)
+        .rowsGap(NEWS_WATERFALL_ROW_GAP)
+        .onAreaChange((_oldValue: Area, newValue: Area) => {
+          this.updateWaterfallWidth(newValue.width);
+        })
+        .nestedScroll({ scrollForward: NestedScrollMode.PARENT_FIRST, scrollBackward: NestedScrollMode.SELF_FIRST })
+      }
+      .width('100%')
+      .padding({ left: 16, right: 16 })
+    }
   }
 
   build() {
@@ -290,7 +410,6 @@ export struct NewsPage {
       Scroll() {
         Column() {
           this.topContent()
-          this.Header()
           if (this.loading) {
             Column() {
               AppLoading({
@@ -317,15 +436,14 @@ export struct NewsPage {
           } else {
             this.SourceLabel()
             this.TopStory()
-            ForEach(this.newsList, (item: NewsItem) => {
-              this.NewsRow(item);
-            }, (item: NewsItem, index: number) => item._id + index.toString())
+            this.NewsWaterfall()
           }
           Blank()
             .height(ROOT_CONTENT_BOTTOM_PADDING)
         }
         .width('100%')
         .constraintSize({ minHeight: '100%' })
+        .justifyContent(FlexAlign.Start)
       }
       .layoutWeight(1)
       .edgeEffect(EdgeEffect.Spring)

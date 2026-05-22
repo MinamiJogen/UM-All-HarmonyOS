@@ -52,6 +52,8 @@ export struct UMEventDetailPage {
   @State eventItem: UmEventItem = emptyEventItem();
   @State hasEvent: boolean = false;
   @State selectedLocale: string = OPEN_DATA_LOCALE_ZH_TW;
+  @State detailContentText: string = '';
+  @State detailContentLinks: HtmlLink[] = [];
 
   aboutToAppear(): void {
     const selected: UmEventItem | null = InfoNavigationState.getSelectedUmEvent();
@@ -61,6 +63,7 @@ export struct UMEventDetailPage {
       const preferred: string = this.preferredLocale();
       const detail: UmEventDetail | undefined = InfoFeedService.findDetail<UmEventDetail>(selected.details, preferred);
       this.selectedLocale = detail ? preferred : (selected.details.length > 0 ? selected.details[0].locale : preferred);
+      this.refreshSimplifiedContent();
     }
     const params: AnalyticsParams = new AnalyticsParams();
     params.routeName = 'UMEventDetail';
@@ -91,6 +94,47 @@ export struct UMEventDetailPage {
     return InfoFeedService.findDetail<UmEventDetail>(this.eventItem.details, this.selectedLocale);
   }
 
+  private cleanStringText(value: string): string {
+    const lines: string[] = value.replace(/\u0000/g, '').split('\n');
+    const result: string[] = [];
+    for (let index = 0; index < lines.length; index++) {
+      const line: string = lines[index].trim();
+      if (line.length > 0) {
+        result.push(line);
+      }
+    }
+    return result.join('\n');
+  }
+
+  private cleanText(value: string | string[] | undefined | null): string {
+    if (value === undefined || value === null) {
+      return '';
+    }
+    if (typeof value === 'string') {
+      return this.cleanStringText(value);
+    }
+    if (Array.isArray(value)) {
+      const result: string[] = [];
+      for (let index = 0; index < value.length; index++) {
+        const rawValue = value[index];
+        if (typeof rawValue === 'string') {
+          const text: string = this.cleanStringText(rawValue);
+          if (text.length > 0) {
+            result.push(text);
+          }
+        }
+      }
+      return result.join('\n');
+    }
+    return '';
+  }
+
+  private refreshSimplifiedContent(): void {
+    const simplified = InfoFeedService.simplifyHtml(this.currentDetail()?.content);
+    this.detailContentText = this.cleanText(simplified.text);
+    this.detailContentLinks = simplified.links;
+  }
+
   private localeOptions(): OpenDataLocaleOption[] {
     return InfoFeedService.getLocaleOptions(this.eventItem.details);
   }
@@ -118,60 +162,61 @@ export struct UMEventDetailPage {
   }
 
   private title(): string {
-    return this.currentDetail()?.title ?? this.localized('澳大活動詳情', 'UM Event Detail');
+    const title: string = this.cleanText(this.currentDetail()?.title);
+    return title.length > 0 ? title : this.localized('澳大活動詳情', 'UM Event Detail');
   }
 
   private speaker(): string {
     const detail: UmEventDetail | undefined = this.currentDetail();
-    return detail?.speakers ?? detail?.speaker ?? '';
+    return this.cleanText(detail?.speakers ?? detail?.speaker);
   }
 
   private venue(): string {
     const detail: UmEventDetail | undefined = this.currentDetail();
-    return detail?.venues ?? detail?.venue ?? '';
+    return this.cleanText(detail?.venues ?? detail?.venue);
   }
 
   private targetAudience(): string {
     const detail: UmEventDetail | undefined = this.currentDetail();
-    return detail?.targetAudiences ?? detail?.targetAudience ?? '';
+    return this.cleanText(detail?.targetAudiences ?? detail?.targetAudience);
   }
 
   private organiser(): string {
     const detail: UmEventDetail | undefined = this.currentDetail();
-    return detail?.organizedBys ?? detail?.organiser ?? '';
+    return this.cleanText(detail?.organizedBys ?? detail?.organiser);
   }
 
   private coorganiser(): string {
     const detail: UmEventDetail | undefined = this.currentDetail();
-    return detail?.coorganizers ?? detail?.coorganiser ?? '';
+    return this.cleanText(detail?.coorganizers ?? detail?.coorganiser);
   }
 
   private remark(): string {
-    return this.currentDetail()?.remark ?? '';
+    return this.cleanText(this.currentDetail()?.remark);
   }
 
   private contentText(): string {
-    return InfoFeedService.simplifyHtml(this.currentDetail()?.content).text;
+    return this.detailContentText;
   }
 
   private contentLinks(): HtmlLink[] {
-    return InfoFeedService.simplifyHtml(this.currentDetail()?.content).links;
+    return this.detailContentLinks;
   }
 
   private contactName(): string {
-    return this.currentDetail()?.contactName ?? '';
+    return this.cleanText(this.currentDetail()?.contactName);
   }
 
   private contactPhone(): string {
-    return this.currentDetail()?.contactPhone ?? '';
+    return this.cleanText(this.currentDetail()?.contactPhone);
   }
 
   private contactFax(): string {
-    return this.currentDetail()?.contactFax ?? '';
+    return this.cleanText(this.currentDetail()?.contactFax);
   }
 
   private contactEmail(): string {
-    return this.currentDetail()?.contactEmail ?? '';
+    return this.cleanText(this.currentDetail()?.contactEmail);
   }
 
   private languageText(): string {
@@ -180,9 +225,19 @@ export struct UMEventDetailPage {
       return '';
     }
     if (typeof value === 'string') {
-      return value;
+      return this.cleanText(value);
     }
-    return value.join(', ');
+    if (!Array.isArray(value)) {
+      return '';
+    }
+    const result: string[] = [];
+    for (let index = 0; index < value.length; index++) {
+      const text: string = this.cleanText(value[index]);
+      if (text.length > 0) {
+        result.push(text);
+      }
+    }
+    return result.join(', ');
   }
 
   private hasContact(): boolean {
@@ -207,6 +262,7 @@ export struct UMEventDetailPage {
           const options: OpenDataLocaleOption[] = this.localeOptions();
           if (index >= 0 && index < options.length) {
             this.selectedLocale = options[index].locale;
+            this.refreshSimplifiedContent();
           }
         }
       })
@@ -418,6 +474,8 @@ export struct UMEventDetailPage {
         this.LinkList()
       }
       .width('100%')
+      .constraintSize({ minHeight: '100%' })
+      .justifyContent(FlexAlign.Start)
       .padding({ bottom: 16 })
     }
     .layoutWeight(1)

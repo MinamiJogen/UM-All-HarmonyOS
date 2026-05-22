@@ -48,22 +48,48 @@ struct Index {
   @Provide('appCurrentTabIndex') currentTabIndex: number = ROOT_TAB_INFO;
   @StorageProp('colorMode') systemColorMode: number = ARKUI_COLOR_MODE_LIGHT;
   private bootstrapStarted: boolean = false;
+  private backgroundBootstrapStarted: boolean = false;
 
   aboutToAppear(): void {
     if (this.bootstrapStarted) {
       return;
     }
     this.bootstrapStarted = true;
+    const preparedState: AppStartupState | undefined = AppBootstrap.getStartupState();
+    if (preparedState) {
+      this.appStartupState = preparedState;
+    }
     this.initializeApp();
   }
 
   private async initializeApp(): Promise<void> {
     const context: common.UIAbilityContext = this.getUIContext().getHostContext() as common.UIAbilityContext;
-    this.appStartupState = createInitialStartupState();
+    let startupState: AppStartupState | undefined = AppBootstrap.getStartupState();
+    if (!startupState) {
+      this.appStartupState = createInitialStartupState();
+    }
     this.appThemeMode = await ThemeStore.loadThemeMode(context);
     ThemeStore.applyColorMode(context, this.appThemeMode);
     this.appLanguage = await I18nService.loadLanguage(context);
-    this.appStartupState = await AppBootstrap.initialize(context);
+    startupState = AppBootstrap.getStartupState();
+    if (!startupState || startupState.running || !startupState.ready) {
+      this.appStartupState = createInitialStartupState();
+      startupState = await AppBootstrap.initializeEssential(context);
+      this.appStartupState = startupState;
+    }
+    this.startBackgroundInitialization(context, startupState);
+  }
+
+  private startBackgroundInitialization(context: common.UIAbilityContext, baseState: AppStartupState): void {
+    if (this.backgroundBootstrapStarted) {
+      return;
+    }
+    this.backgroundBootstrapStarted = true;
+    const backgroundState: AppStartupState = AppBootstrap.markBackgroundInitializationRunning(baseState);
+    this.appStartupState = backgroundState;
+    AppBootstrap.initializeBackground(context, backgroundState).then((state: AppStartupState) => {
+      this.appStartupState = state;
+    });
   }
 
   private popRouteIfNeeded(): boolean {
@@ -115,7 +141,7 @@ struct Index {
     .hideTitleBar(true)
     .mode(NavDestinationMode.STANDARD)
     .systemTransition(NavigationSystemTransitionType.SLIDE_RIGHT)
-    .ignoreLayoutSafeArea([LayoutSafeAreaType.SYSTEM], [LayoutSafeAreaEdge.BOTTOM])
+    .ignoreLayoutSafeArea([LayoutSafeAreaType.SYSTEM], [LayoutSafeAreaEdge.TOP, LayoutSafeAreaEdge.BOTTOM])
     .onBackPressed(() => {
       return this.popRouteIfNeeded();
     })
@@ -128,6 +154,7 @@ struct Index {
     .hideTitleBar(true)
     .mode(NavigationMode.Stack)
     .navDestination(this.routeMap)
+    .ignoreLayoutSafeArea([LayoutSafeAreaType.SYSTEM], [LayoutSafeAreaEdge.TOP, LayoutSafeAreaEdge.BOTTOM])
     .backgroundColor(ThemeStore.resolveTheme(this.appThemeMode, this.systemColorMode).bgColor)
   }
 }
