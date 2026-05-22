@@ -1191,6 +1191,43 @@ export struct What2RegPage {
   build() {
     Stack() {
       Column() {
+      }
+      .width(1)
+      .height(1)
+      .opacity(0)
+      .bindSheet($$this.showSearchSheet, this.SearchActionSheetContent(), {
+        height: SheetSize.MEDIUM,
+        detents: [SheetSize.MEDIUM, SheetSize.LARGE],
+        preferType: SheetType.BOTTOM,
+        mode: SheetMode.OVERLAY,
+        scrollSizeMode: ScrollSizeMode.CONTINUOUS,
+        title: {
+          title: this.searchText.trim().length > 0 ? this.searchText.trim() :
+          this.localized('搜尋鏈接', 'Search links')
+        },
+        backgroundColor: this.theme().bgColor,
+        showClose: true
+      })
+
+      Column() {
+      }
+      .width(1)
+      .height(1)
+      .opacity(0)
+      .bindSheet($$this.showUpdateSheet, this.UpdateSheetContent(), {
+        height: SheetSize.MEDIUM,
+        detents: [SheetSize.MEDIUM, SheetSize.LARGE],
+        preferType: SheetType.BOTTOM,
+        mode: SheetMode.OVERLAY,
+        scrollSizeMode: ScrollSizeMode.CONTINUOUS,
+        title: {
+          title: this.localized('課程數據更新', 'Course data update')
+        },
+        backgroundColor: this.theme().bgColor,
+        showClose: true
+      })
+
+      Column() {
         if (this.loading && this.displayCourses.length === 0) {
           this.LoadingStateContent()
         } else if (this.errorMessage.length > 0 && this.displayCourses.length === 0) {
@@ -1217,30 +1254,5 @@ export struct What2RegPage {
     .width('100%')
     .height('100%')
     .backgroundColor(this.theme().bgColor)
-    .bindSheet($$this.showSearchSheet, this.SearchActionSheetContent(), {
-      height: SheetSize.MEDIUM,
-      detents: [SheetSize.MEDIUM, SheetSize.LARGE],
-      preferType: SheetType.BOTTOM,
-      mode: SheetMode.OVERLAY,
-      scrollSizeMode: ScrollSizeMode.CONTINUOUS,
-      title: {
-        title: this.searchText.trim().length > 0 ? this.searchText.trim() :
-        this.localized('搜尋鏈接', 'Search links')
-      },
-      backgroundColor: this.theme().bgColor,
-      showClose: true
-    })
-    .bindSheet($$this.showUpdateSheet, this.UpdateSheetContent(), {
-      height: SheetSize.MEDIUM,
-      detents: [SheetSize.MEDIUM, SheetSize.LARGE],
-      preferType: SheetType.BOTTOM,
-      mode: SheetMode.OVERLAY,
-      scrollSizeMode: ScrollSizeMode.CONTINUOUS,
-      title: {
-        title: this.localized('課程數據更新', 'Course data update')
-      },
-      backgroundColor: this.theme().bgColor,
-      showClose: true
-    })
   }
 }
