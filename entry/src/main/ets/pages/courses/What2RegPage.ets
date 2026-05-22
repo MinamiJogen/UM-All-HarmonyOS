@@ -22,7 +22,6 @@ import {
   ThemeStore
 } from '../../common/theme/AppTheme';
 import { OpenLink } from '../../common/utils/OpenLink';
-import { AppBottomSheet } from '../../components/AppBottomSheet';
 import { AppCard } from '../../components/AppCard';
 import { AppEmptyState } from '../../components/AppEmptyState';
 import { AppListItem } from '../../components/AppListItem';
@@ -941,12 +940,21 @@ export struct What2RegPage {
 
   @Builder
   CourseActionSheetContent(): void {
-    AppCard({
-      cardPadding: 0,
-      content: (): void => {
-        this.CourseActionCardContent();
+    Scroll() {
+      Column() {
+        AppCard({
+          cardPadding: 0,
+          content: (): void => {
+            this.CourseActionCardContent();
+          }
+        })
       }
-    })
+      .width('100%')
+      .padding({ left: 16, right: 16, bottom: 18 })
+    }
+    .width('100%')
+    .height('100%')
+    .edgeEffect(EdgeEffect.Spring)
   }
 
   @Builder
@@ -1195,6 +1203,25 @@ export struct What2RegPage {
       .width(1)
       .height(1)
       .opacity(0)
+      .bindSheet($$this.showCourseSheet, this.CourseActionSheetContent(), {
+        height: SheetSize.MEDIUM,
+        detents: [SheetSize.MEDIUM, SheetSize.LARGE],
+        preferType: SheetType.BOTTOM,
+        mode: SheetMode.OVERLAY,
+        scrollSizeMode: ScrollSizeMode.CONTINUOUS,
+        title: {
+          title: this.selectedCourseCode.length > 0 ? this.selectedCourseCode :
+          this.localized('課程操作', 'Course actions')
+        },
+        backgroundColor: this.theme().bgColor,
+        showClose: true
+      })
+
+      Column() {
+      }
+      .width(1)
+      .height(1)
+      .opacity(0)
       .bindSheet($$this.showSearchSheet, this.SearchActionSheetContent(), {
         height: SheetSize.MEDIUM,
         detents: [SheetSize.MEDIUM, SheetSize.LARGE],
@@ -1239,17 +1266,6 @@ export struct What2RegPage {
       .width('100%')
       .height('100%')
       .backgroundColor(this.theme().bgColor)
-
-      AppBottomSheet({
-        visible: $showCourseSheet,
-        title: this.selectedCourseCode.length > 0 ? this.selectedCourseCode : this.localized('課程操作', 'Course actions'),
-        closeText: this.localized('返回', 'Back'),
-        maxHeightPercent: 82,
-        content: (): void => {
-          this.CourseActionSheetContent();
-        }
-      })
-
     }
     .width('100%')
     .height('100%')

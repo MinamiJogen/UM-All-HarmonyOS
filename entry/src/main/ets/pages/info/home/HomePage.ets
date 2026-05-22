@@ -3,8 +3,6 @@ import {
   AFD_UMACARK,
   ARK_HARBOR_LOGIN,
   ARK_HARBOR_NEW_TOPIC,
-  ARK_SUPPORT_MAIL,
-  UM_CALENDAR,
   UM_MOODLE
 } from '../../../common/constants/ApiEndpoints';
 import { RAWFILE_UM_CALENDAR } from '../../../common/constants/ResourcePaths';
@@ -16,16 +14,18 @@ import {
 } from '../../../common/constants/ServiceFeatureCatalog';
 import {
   ROUTE_BUS,
-  ROUTE_UM_EVENT_DETAIL
+  ROUTE_EVENT_DETAIL,
+  ROUTE_WEBVIEWER
 } from '../../../common/constants/RouteNames';
 import { ROOT_CONTENT_BOTTOM_PADDING } from '../../../common/constants/LayoutMetrics';
 import { ROOT_TAB_TIMETABLE } from '../../../common/constants/TabIndexes';
-import { InfoNavigationState } from '../../../common/navigation/InfoNavigationState';
+import { ClubNavigationState } from '../../../common/navigation/ClubNavigationState';
 import {
   INFO_TOP_TAB_HOME,
   InfoRefreshHandler,
   InfoRefreshRegistry
 } from '../../../common/navigation/InfoRefreshRegistry';
+import { WebNavigationState } from '../../../common/navigation/WebNavigationState';
 import { ServiceResult } from '../../../common/net/HttpClient';
 import { I18nService, LANGUAGE_EN } from '../../../common/i18n/I18nService';
 import {
@@ -40,20 +40,20 @@ import { AppLoading } from '../../../components/AppLoading';
 import { AppNetworkImage } from '../../../components/AppNetworkImage';
 import { AppSearchField } from '../../../components/AppSearchField';
 import { AppToast, AppToastType } from '../../../components/AppToast';
-import { AppInfoUpdateState } from '../../../services/AppInfoService';
 import { AppInfoService } from '../../../services/AppInfoService';
 import { AnalyticsParams, AnalyticsService } from '../../../services/AnalyticsService';
+import { ClubService } from '../../../services/ClubService';
+import {
+  HarborTopic,
+  HOME_FEED_KIND_HARBOR,
+  HomeFeedItem,
+  HomeFeedPage,
+  HomeFeedService
+} from '../../../services/HomeFeedService';
 import { InfoFeedService } from '../../../services/InfoFeedService';
 import { UmehHostService, UmehHostState } from '../../../services/UmehHostService';
 import { TimetableHomeCacheItem } from '../../../models/Course';
-import {
-  UmEventDetail,
-  UmEventItem
-} from '../../../models/Event';
-import {
-  OPEN_DATA_LOCALE_EN_US,
-  OPEN_DATA_LOCALE_ZH_TW
-} from '../../../models/News';
+import { ClubActivity } from '../../../models/Event';
 import { RawFileReader } from '../../../common/resources/RawFileReader';
 
 interface HomeCalendarItem {
@@ -120,6 +120,22 @@ function pad2(value: number): string {
   return value < 10 ? '0' + value.toString() : value.toString();
 }
 
+const HOME_FEED_PAGE_SIZE: number = 10;
+const HOME_LAYOUT_BREAKPOINT_MD: number = 600;
+const HOME_LAYOUT_BREAKPOINT_LG: number = 840;
+const HOME_LAYOUT_GAP: number = 12;
+const HOME_CARD_VERTICAL_PADDING: number = 28;
+const HOME_UPCOMING_PANEL_WIDTH: number = 210;
+const HOME_UPDATE_PANEL_WIDTH: number = 300;
+const HOME_UPDATE_PANEL_WIDE_WIDTH: number = 360;
+const HOME_WATERFALL_MIN_COLUMNS: number = 2;
+const HOME_WATERFALL_COLUMN_GAP: number = 10;
+const HOME_WATERFALL_ROW_GAP: number = 12;
+const HOME_WATERFALL_PREFERRED_ITEM_WIDTH: number = 176;
+const HOME_EVENT_IMAGE_HEIGHT: number = 126;
+const HOME_HARBOR_AVATAR_SIZE: number = 18;
+const HARMONYOS_BETA_FEEDBACK_URL: string = '';
+
 @Component
 export struct HomePage {
   @Consume('appPathStack') pathStack: NavPathStack;
@@ -128,21 +144,25 @@ export struct HomePage {
   @Consume('appCurrentTabIndex') currentTabIndex: number;
   @StorageProp('colorMode') systemColorMode: number = ARKUI_COLOR_MODE_LIGHT;
   @State loading: boolean = true;
-  @State appInfoError: string = '';
-  @State eventError: string = '';
-  @State updateAvailable: boolean = false;
-  @State latestVersion: string = '';
   @State localVersion: string = '';
-  @State versionInfo: string = '';
   @State hasUpcomingCourse: boolean = false;
   @State upcomingCourse: TimetableHomeCacheItem = emptyHomeCourse();
-  @State eventPreview: UmEventItem[] = [];
   @State calendarItems: HomeCalendarItem[] = [];
   @State selectedCalendarIndex: number = 0;
   @State calendarError: string = '';
   @State searchText: string = '';
   @State showSearchSheet: boolean = false;
   @State featureResults: ServiceFeatureItem[] = [];
+  @State homeFeedItems: HomeFeedItem[] = [];
+  @State homeFeedPage: number = 1;
+  @State homeFeedNoMore: boolean = false;
+  @State homeFeedLoading: boolean = false;
+  @State homeFeedError: string = '';
+  @State private pageViewportWidth: number = 0;
+  @State private waterfallWidth: number = 0;
+  @State private upcomingPanelContentHeight: number = 20;
+  @State private quickActionsPanelContentHeight: number = 66;
+  @State private updatePanelContentHeight: number = 100;
   @BuilderParam topContent: () => void = this.EmptySlot;
   private loaded: boolean = false;
   private refreshHandler: InfoRefreshHandler = (): void => {
@@ -182,10 +202,6 @@ export struct HomePage {
 
   private localized(tcText: string, enText: string): string {
     return this.isEnglish() ? enText : tcText;
-  }
-
-  private preferredLocale(): string {
-    return this.isEnglish() ? OPEN_DATA_LOCALE_EN_US : OPEN_DATA_LOCALE_ZH_TW;
   }
 
   private getContext(): common.UIAbilityContext {
@@ -279,29 +295,11 @@ export struct HomePage {
 
   private async refresh(showToast: boolean): Promise<void> {
     this.loading = true;
-    this.appInfoError = '';
-    this.eventError = '';
     await this.reloadUpcomingCourse();
     await this.loadCalendar();
+    this.localVersion = await AppInfoService.getLocalVersion();
 
-    const appInfoResult: ServiceResult<AppInfoUpdateState> = await AppInfoService.checkUpdateState(this.getContext());
-    if (appInfoResult.data) {
-      this.localVersion = appInfoResult.data.localVersion;
-      this.latestVersion = appInfoResult.data.latestVersion;
-      this.updateAvailable = appInfoResult.data.updateAvailable;
-      this.versionInfo = appInfoResult.data.appInfo?.version_info ?? '';
-    }
-    if (!appInfoResult.ok) {
-      this.appInfoError = appInfoResult.error?.message ?? this.localized('App 信息同步失敗', 'App info sync failed');
-    }
-
-    const eventResult: ServiceResult<UmEventItem[]> = await InfoFeedService.fetchUmEvents(4);
-    if (eventResult.ok && eventResult.data) {
-      this.eventPreview = eventResult.data;
-    } else {
-      this.eventPreview = [];
-      this.eventError = eventResult.error?.message ?? this.localized('活動資料讀取失敗', 'Failed to load events');
-    }
+    await this.refreshHomeFeed();
 
     this.loading = false;
     if (showToast) {
@@ -309,11 +307,76 @@ export struct HomePage {
     }
   }
 
+  private async refreshHomeFeed(): Promise<void> {
+    this.homeFeedLoading = true;
+    this.homeFeedError = '';
+    this.homeFeedPage = 1;
+    this.homeFeedNoMore = false;
+    this.homeFeedItems = [];
+    const result: ServiceResult<HomeFeedPage> = await HomeFeedService.fetchFirstPage(HOME_FEED_PAGE_SIZE);
+    if (result.ok && result.data) {
+      this.homeFeedPage = result.data.page;
+      this.homeFeedNoMore = result.data.noMore;
+      this.homeFeedItems = result.data.items;
+    } else {
+      this.homeFeedError = result.error?.message ?? this.localized('動態資料讀取失敗', 'Failed to load feed');
+      this.homeFeedNoMore = true;
+    }
+    this.homeFeedLoading = false;
+  }
+
+  private async loadMoreHomeFeed(): Promise<void> {
+    if (this.loading || this.homeFeedLoading || this.homeFeedNoMore) {
+      return;
+    }
+    this.homeFeedLoading = true;
+    this.homeFeedError = '';
+    const targetPage: number = this.homeFeedPage + 1;
+    const result: ServiceResult<HomeFeedPage> = await HomeFeedService.fetchNextPage(targetPage, HOME_FEED_PAGE_SIZE);
+    if (result.ok && result.data) {
+      this.homeFeedPage = result.data.page;
+      this.homeFeedNoMore = result.data.noMore || result.data.items.length === 0;
+      this.homeFeedItems = this.appendHomeFeedItems(result.data.items);
+    } else {
+      this.homeFeedError = result.error?.message ?? this.localized('更多動態讀取失敗', 'Failed to load more feed');
+      AppToast.showError(this.getUIContext(), this.homeFeedError);
+    }
+    this.homeFeedLoading = false;
+  }
+
+  private appendHomeFeedItems(items: HomeFeedItem[]): HomeFeedItem[] {
+    const result: HomeFeedItem[] = [];
+    for (let i = 0; i < this.homeFeedItems.length; i++) {
+      result.push(this.homeFeedItems[i]);
+    }
+    for (let i = 0; i < items.length; i++) {
+      let exists: boolean = false;
+      for (let j = 0; j < result.length; j++) {
+        if (result[j].key === items[i].key) {
+          exists = true;
+          break;
+        }
+      }
+      if (!exists) {
+        result.push(items[i]);
+      }
+    }
+    return result;
+  }
+
   private async openExternal(url: string): Promise<void> {
     const success: boolean = await OpenLink.open(this.getContext(), url);
     if (!success) {
       AppToast.showError(this.getUIContext(), this.localized('無法打開鏈接', 'Unable to open link'));
     }
+  }
+
+  private async openHarmonyOsBetaFeedback(): Promise<void> {
+    if (HARMONYOS_BETA_FEEDBACK_URL.length === 0) {
+      AppToast.show(this.getUIContext(), this.localized('暫未開放', 'Not available yet'), AppToastType.Info);
+      return;
+    }
+    await this.openExternal(HARMONYOS_BETA_FEEDBACK_URL);
   }
 
   private searchFeatures(keyword: string): ServiceFeatureItem[] {
@@ -373,15 +436,169 @@ export struct HomePage {
     encodeURIComponent('site:umall.one OR site:um.edu.mo ' + keyword));
   }
 
-  private titleForEvent(item: UmEventItem): string {
-    const detail: UmEventDetail | undefined =
-      InfoFeedService.findDetail<UmEventDetail>(item.details, this.preferredLocale());
-    return detail?.title ?? this.localized('無標題活動', 'Untitled event');
+  private openClubActivity(event: ClubActivity): void {
+    if ((event.type ?? '') === 'WEBSITE' && (event.link ?? '').length > 0) {
+      WebNavigationState.setLink({
+        url: event.link ?? '',
+        title: event.title ?? this.localized('網頁', 'Web')
+      });
+      this.pathStack.pushPathByName(ROUTE_WEBVIEWER, null);
+      return;
+    }
+    ClubNavigationState.setSelectedEvent(event);
+    this.pathStack.pushPathByName(ROUTE_EVENT_DETAIL, null);
   }
 
-  private openEvent(item: UmEventItem): void {
-    InfoNavigationState.setSelectedUmEvent(item);
-    this.pathStack.pushPathByName(ROUTE_UM_EVENT_DETAIL, null);
+  private async openHarborTopic(topic: HarborTopic): Promise<void> {
+    const url: string = HomeFeedService.harborTopicUrl(topic);
+    if (url.length === 0) {
+      return;
+    }
+    await this.openExternal(url);
+  }
+
+  private lengthToNumber(value: Length): number {
+    if (typeof value === 'number') {
+      return value;
+    }
+    if (typeof value === 'string') {
+      const parsed = Number.parseFloat(value);
+      return Number.isFinite(parsed) ? parsed : 0;
+    }
+    return 0;
+  }
+
+  private updateWaterfallWidth(value: Length): void {
+    const nextWidth = this.lengthToNumber(value);
+    if (nextWidth <= 0) {
+      return;
+    }
+    if (Math.abs(nextWidth - this.waterfallWidth) >= 1) {
+      this.waterfallWidth = nextWidth;
+    }
+  }
+
+  private updatePageViewportWidth(value: Length): void {
+    const nextWidth: number = this.lengthToNumber(value);
+    if (nextWidth > 0 && Math.abs(nextWidth - this.pageViewportWidth) >= 1) {
+      this.pageViewportWidth = nextWidth;
+    }
+  }
+
+  private isPhoneLayout(): boolean {
+    return this.pageViewportWidth <= 0 || this.pageViewportWidth < HOME_LAYOUT_BREAKPOINT_MD;
+  }
+
+  private isFoldLayout(): boolean {
+    return this.pageViewportWidth >= HOME_LAYOUT_BREAKPOINT_MD &&
+      this.pageViewportWidth < HOME_LAYOUT_BREAKPOINT_LG;
+  }
+
+  private updatePanelWidth(): number {
+    return this.pageViewportWidth >= 1000 ? HOME_UPDATE_PANEL_WIDE_WIDTH : HOME_UPDATE_PANEL_WIDTH;
+  }
+
+  private resolveMeasuredContentHeight(value: Length, current: number): number {
+    const nextHeight: number = this.lengthToNumber(value);
+    if (nextHeight <= 0 || Math.abs(nextHeight - current) < 1) {
+      return current;
+    }
+    return nextHeight;
+  }
+
+  private updateUpcomingPanelContentHeight(value: Length): void {
+    this.upcomingPanelContentHeight = this.resolveMeasuredContentHeight(value, this.upcomingPanelContentHeight);
+  }
+
+  private updateQuickActionsPanelContentHeight(value: Length): void {
+    this.quickActionsPanelContentHeight =
+      this.resolveMeasuredContentHeight(value, this.quickActionsPanelContentHeight);
+  }
+
+  private updateUpdatePanelContentHeight(value: Length): void {
+    this.updatePanelContentHeight = this.resolveMeasuredContentHeight(value, this.updatePanelContentHeight);
+  }
+
+  private panelHeight(contentHeight: number): number {
+    return contentHeight + HOME_CARD_VERTICAL_PADDING;
+  }
+
+  private foldTopCardsRowHeight(): number {
+    return Math.max(
+      this.panelHeight(this.upcomingPanelContentHeight),
+      this.panelHeight(this.quickActionsPanelContentHeight)
+    );
+  }
+
+  private expandedCardsRowHeight(): number {
+    return Math.max(
+      this.panelHeight(this.upcomingPanelContentHeight),
+      this.panelHeight(this.quickActionsPanelContentHeight),
+      this.panelHeight(this.updatePanelContentHeight)
+    );
+  }
+
+  private itemWidthForColumns(width: number, columns: number): number {
+    if (columns <= 0) {
+      return width;
+    }
+    return (width - HOME_WATERFALL_COLUMN_GAP * (columns - 1)) / columns;
+  }
+
+  private waterfallColumnCount(): number {
+    if (this.waterfallWidth <= 0) {
+      return HOME_WATERFALL_MIN_COLUMNS;
+    }
+    let bestColumns = HOME_WATERFALL_MIN_COLUMNS;
+    let bestDistance = Math.abs(this.itemWidthForColumns(this.waterfallWidth, bestColumns) -
+      HOME_WATERFALL_PREFERRED_ITEM_WIDTH);
+    const widestUsefulColumns = Math.max(
+      HOME_WATERFALL_MIN_COLUMNS,
+      Math.ceil((this.waterfallWidth + HOME_WATERFALL_COLUMN_GAP) /
+        (HOME_WATERFALL_PREFERRED_ITEM_WIDTH + HOME_WATERFALL_COLUMN_GAP)) + 1
+    );
+    for (let columns = HOME_WATERFALL_MIN_COLUMNS + 1; columns <= widestUsefulColumns; columns++) {
+      const distance = Math.abs(this.itemWidthForColumns(this.waterfallWidth, columns) -
+        HOME_WATERFALL_PREFERRED_ITEM_WIDTH);
+      if (distance < bestDistance) {
+        bestColumns = columns;
+        bestDistance = distance;
+      }
+    }
+    return bestColumns;
+  }
+
+  private waterfallColumnIndexes(): number[] {
+    const columns = this.waterfallColumnCount();
+    const indexes: number[] = [];
+    for (let index = 0; index < columns; index++) {
+      indexes.push(index);
+    }
+    return indexes;
+  }
+
+  private homeFeedItemsForColumn(targetColumn: number): HomeFeedItem[] {
+    const columns = this.waterfallColumnCount();
+    const result: HomeFeedItem[] = [];
+    for (let index = 0; index < this.homeFeedItems.length; index++) {
+      if (index % columns === targetColumn) {
+        result.push(this.homeFeedItems[index]);
+      }
+    }
+    return result;
+  }
+
+  private eventBadgeText(event: ClubActivity): string {
+    if ((event.type ?? '') === 'WEBSITE') {
+      return 'WEB';
+    }
+    if (ClubService.eventIsPast(event)) {
+      return this.localized('已過', 'Past');
+    }
+    if (ClubService.eventIsAlmostEnd(event)) {
+      return this.localized('將結束', 'Ending');
+    }
+    return this.localized('進行中', 'Active');
   }
 
   private quickIconBackground(index: number): string {
@@ -694,17 +911,41 @@ export struct HomePage {
   }
 
   @Builder
+  UpcomingCoursePanel(targetHeight: number): void {
+    if (targetHeight > 0) {
+      AppCard({
+        clickable: true,
+        contentJustifyContent: FlexAlign.Center,
+        surfaceColor: this.hasUpcomingCourse ? this.theme().themeColorUltraLight : this.theme().surfaceAltColor,
+        onTap: (): void => {
+          this.currentTabIndex = ROOT_TAB_TIMETABLE;
+        },
+        content: (): void => {
+          this.UpcomingCourseContent();
+        }
+      })
+      .height(targetHeight)
+    } else {
+      AppCard({
+        clickable: true,
+        contentJustifyContent: FlexAlign.Center,
+        surfaceColor: this.hasUpcomingCourse ? this.theme().themeColorUltraLight : this.theme().surfaceAltColor,
+        onTap: (): void => {
+          this.currentTabIndex = ROOT_TAB_TIMETABLE;
+        },
+        content: (): void => {
+          this.UpcomingCourseContent();
+        }
+      })
+    }
+  }
+
+  @Builder
   UpcomingCourseCard(): void {
-    AppCard({
-      clickable: true,
-      surfaceColor: this.hasUpcomingCourse ? this.theme().themeColorUltraLight : this.theme().surfaceAltColor,
-      onTap: (): void => {
-        this.currentTabIndex = ROOT_TAB_TIMETABLE;
-      },
-      content: (): void => {
-        this.UpcomingCourseContent();
-      }
-    })
+    Column() {
+      this.UpcomingCoursePanel(0)
+    }
+    .width('100%')
     .margin({ left: 16, right: 16, top: 3, bottom: 10 })
   }
 
@@ -716,19 +957,28 @@ export struct HomePage {
         .fontSize(14)
         .fontWeight(FontWeight.Bold)
         .fontColor(this.theme().textPrimary)
+        .maxLines(1)
+        .textOverflow({ overflow: TextOverflow.Ellipsis })
         .layoutWeight(1)
       if (this.hasUpcomingCourse) {
         Text(this.upcomingCourse.courseCode + ' ' + this.upcomingCourse.timeFrom)
           .fontSize(14)
           .fontWeight(FontWeight.Bold)
           .fontColor(this.theme().themeColor)
+          .maxLines(1)
+          .textOverflow({ overflow: TextOverflow.Ellipsis })
       } else {
         Text(this.localized('查看課表', 'Open timetable'))
           .fontSize(13)
           .fontColor(this.theme().textTertiary)
+          .maxLines(1)
+          .textOverflow({ overflow: TextOverflow.Ellipsis })
       }
     }
     .width('100%')
+    .onAreaChange((_oldValue: Area, newValue: Area) => {
+      this.updateUpcomingPanelContentHeight(newValue.height);
+    })
   }
 
   @Builder
@@ -768,12 +1018,31 @@ export struct HomePage {
   }
 
   @Builder
+  QuickActionsPanel(targetHeight: number): void {
+    if (targetHeight > 0) {
+      AppCard({
+        contentJustifyContent: FlexAlign.Center,
+        content: (): void => {
+          this.QuickActionsContent();
+        }
+      })
+      .height(targetHeight)
+    } else {
+      AppCard({
+        contentJustifyContent: FlexAlign.Center,
+        content: (): void => {
+          this.QuickActionsContent();
+        }
+      })
+    }
+  }
+
+  @Builder
   QuickActions(): void {
-    AppCard({
-      content: (): void => {
-        this.QuickActionsContent();
-      }
-    })
+    Column() {
+      this.QuickActionsPanel(0)
+    }
+    .width('100%')
     .margin({ left: 16, right: 16, bottom: 12 })
   }
 
@@ -798,184 +1067,409 @@ export struct HomePage {
     }
     .width('100%')
     .justifyContent(FlexAlign.SpaceBetween)
+    .onAreaChange((_oldValue: Area, newValue: Area) => {
+      this.updateQuickActionsPanelContentHeight(newValue.height);
+    })
   }
 
   @Builder
-  SectionTitle(title: string, actionText: string, action: () => void): void {
-    Row() {
-      Text(title)
-        .fontSize(14)
-        .fontWeight(FontWeight.Bold)
-        .fontColor(this.theme().textTertiary)
-        .layoutWeight(1)
-      if (actionText.length > 0) {
-        Button(actionText)
-          .height(30)
-          .borderRadius(8)
-          .fontSize(12)
-          .fontColor(this.theme().themeColor)
-          .backgroundColor(this.theme().surfaceAltColor)
-          .onClick(() => {
-            action();
-          })
-      }
-    }
-    .width('100%')
-    .padding({ left: 16, right: 16 })
-    .margin({ top: 8, bottom: 8 })
-  }
-
-  @Builder
-  UpdateCard(): void {
-    if (this.updateAvailable) {
+  UpdatePanel(targetHeight: number): void {
+    if (targetHeight > 0) {
       AppCard({
         content: (): void => {
           this.UpdateCardContent();
         }
       })
-      .margin({ left: 16, right: 16, bottom: 12 })
-    } else if (this.appInfoError.length > 0) {
-      Text(this.appInfoError)
-        .fontSize(12)
-        .fontColor(this.theme().textTertiary)
-        .width('100%')
-        .padding({ left: 16, right: 16 })
-        .margin({ bottom: 8 })
+      .height(targetHeight)
+    } else {
+      AppCard({
+        content: (): void => {
+          this.UpdateCardContent();
+        }
+      })
     }
+  }
+
+  @Builder
+  UpdateCard(): void {
+    Column() {
+      this.UpdatePanel(0)
+    }
+    .width('100%')
+    .margin({ left: 16, right: 16, bottom: 12 })
   }
 
   @Builder
   UpdateCardContent(): void {
     Column() {
-      Text(this.localized('新版本可用', 'Update available'))
-        .fontSize(16)
-        .fontWeight(FontWeight.Bold)
-        .fontColor(this.theme().secondThemeColor)
-        .width('100%')
-      Text(this.localized('最新版本：', 'Latest: ') + this.latestVersion + ' / ' +
-      this.localized('當前版本：', 'Current: ') + this.localVersion)
-        .fontSize(13)
+      Row() {
+        Text(this.localized('HarmonyOS 內測版本', 'HarmonyOS Beta Version'))
+          .fontSize(15)
+          .fontWeight(FontWeight.Bold)
+          .fontColor(this.theme().secondThemeColor)
+          .maxLines(1)
+          .textOverflow({ overflow: TextOverflow.Ellipsis })
+          .layoutWeight(1)
+        Button(this.localized('點擊反饋', 'Send Feedback'))
+          .height(28)
+          .borderRadius(8)
+          .fontSize(11)
+          .fontWeight(FontWeight.Bold)
+          .fontColor(Color.White)
+          .backgroundColor(this.theme().themeColor)
+          .padding({ left: 8, right: 8 })
+          .margin({ left: 8 })
+          .onClick(() => {
+            this.openHarmonyOsBetaFeedback();
+          })
+      }
+      .width('100%')
+      .alignItems(VerticalAlign.Center)
+      Text(this.localized('當前版本號：', 'Current version: ') + (this.localVersion.length > 0 ? this.localVersion : '-'))
+        .fontSize(12)
         .fontColor(this.theme().textSecondary)
-        .lineHeight(19)
+        .lineHeight(16)
         .width('100%')
-        .margin({ top: 6 })
-      if (this.versionInfo.length > 0) {
-        Text(this.versionInfo)
+        .margin({ top: 4 })
+      Text(this.localized('當前版本為 HarmonyOS 內測版本，適配 HarmonyOS 6.1.0 及更新系統。\n' +
+      '內測版本可能存在功能不完整/Bug，可點擊後在 GitHub 的 Issue 進行反饋。',
+        'HarmonyOS beta for HarmonyOS 6.1.0 and later.\n' +
+        'Beta features may be incomplete or buggy. Tap to report via GitHub Issues.'))
+        .fontSize(12)
+        .fontColor(this.theme().textTertiary)
+        .lineHeight(16)
+        .width('100%')
+        .margin({ top: 4 })
+    }
+    .width('100%')
+    .onAreaChange((_oldValue: Area, newValue: Area) => {
+      this.updateUpdatePanelContentHeight(newValue.height);
+    })
+  }
+
+  @Builder
+  ResponsiveHomeCardsLayout(): void {
+    if (this.isPhoneLayout()) {
+      Column({ space: HOME_LAYOUT_GAP }) {
+        this.UpcomingCoursePanel(0)
+        this.QuickActionsPanel(0)
+        this.UpdatePanel(0)
+      }
+      .width('100%')
+      .padding({ left: 16, right: 16 })
+      .margin({ top: 3, bottom: 12 })
+    } else if (this.isFoldLayout()) {
+      Column({ space: HOME_LAYOUT_GAP }) {
+        Row({ space: HOME_LAYOUT_GAP }) {
+          Column() {
+            this.UpcomingCoursePanel(this.foldTopCardsRowHeight())
+          }
+          .width(HOME_UPCOMING_PANEL_WIDTH)
+
+          Column() {
+            this.QuickActionsPanel(this.foldTopCardsRowHeight())
+          }
+          .layoutWeight(1)
+        }
+        .width('100%')
+        .alignItems(VerticalAlign.Top)
+
+        this.UpdatePanel(0)
+      }
+      .width('100%')
+      .padding({ left: 16, right: 16 })
+      .margin({ top: 3, bottom: 12 })
+    } else {
+      Row({ space: HOME_LAYOUT_GAP }) {
+        Column() {
+          this.UpcomingCoursePanel(this.expandedCardsRowHeight())
+        }
+        .width(HOME_UPCOMING_PANEL_WIDTH)
+
+        Column() {
+          this.QuickActionsPanel(this.expandedCardsRowHeight())
+        }
+        .layoutWeight(1)
+
+        Column() {
+          this.UpdatePanel(this.expandedCardsRowHeight())
+        }
+        .width(this.updatePanelWidth())
+      }
+      .width('100%')
+      .alignItems(VerticalAlign.Top)
+      .padding({ left: 16, right: 16 })
+      .margin({ top: 3, bottom: 12 })
+    }
+  }
+
+  @Builder
+  FeedCard(item: HomeFeedItem): void {
+    if (item.kind === HOME_FEED_KIND_HARBOR && item.harbor) {
+      this.HarborCard(item.harbor);
+    } else if (item.event) {
+      this.HomeFeedEventCard(item.event);
+    }
+  }
+
+  @Builder
+  HomeFeedEventCard(event: ClubActivity): void {
+    AppCard({
+      clickable: true,
+      cardPadding: 0,
+      onTap: (): void => {
+        this.openClubActivity(event);
+      },
+      content: (): void => {
+        this.HomeFeedEventCardContent(event);
+      }
+    })
+  }
+
+  @Builder
+  HomeFeedEventCardContent(event: ClubActivity): void {
+    Column() {
+      if ((event.cover_image_url ?? '').length > 0) {
+        AppNetworkImage({
+          src: event.cover_image_url ?? '',
+          alt: event.title ?? '',
+          imageHeight: HOME_EVENT_IMAGE_HEIGHT,
+          radius: 8
+        })
+        .width('100%')
+      }
+
+      Column() {
+        Text(event.title ?? this.localized('未命名活動', 'Untitled event'))
           .fontSize(13)
+          .fontWeight(FontWeight.Bold)
+          .fontColor(ClubService.eventIsPast(event) ? this.theme().textTertiary : this.theme().textPrimary)
+          .lineHeight(18)
+          .maxLines(3)
+          .textOverflow({ overflow: TextOverflow.Ellipsis })
+          .width('100%')
+
+        Row() {
+          this.HomeFeedEventBadge(event)
+          Text(event.club_name ?? '')
+            .fontSize(11)
+            .fontColor(this.theme().textTertiary)
+            .maxLines(1)
+            .textOverflow({ overflow: TextOverflow.Ellipsis })
+            .layoutWeight(1)
+            .margin({ left: 5 })
+        }
+        .width('100%')
+        .margin({ top: 7 })
+
+        Text(ClubService.formatEventRange(event))
+          .fontSize(11)
           .fontColor(this.theme().textTertiary)
-          .lineHeight(19)
+          .maxLines(1)
+          .textOverflow({ overflow: TextOverflow.Ellipsis })
+          .width('100%')
+          .margin({ top: 5 })
+      }
+      .width('100%')
+      .padding(10)
+    }
+    .width('100%')
+    .alignItems(HorizontalAlign.Start)
+  }
+
+  @Builder
+  HomeFeedEventBadge(event: ClubActivity): void {
+    Text(this.eventBadgeText(event))
+      .fontSize(10)
+      .fontWeight(FontWeight.Bold)
+      .fontColor(ClubService.eventIsPast(event) ? this.theme().textTertiary : this.theme().secondThemeColor)
+      .padding({ left: 6, right: 6, top: 3, bottom: 3 })
+      .borderRadius(8)
+      .backgroundColor(this.theme().surfaceAltColor)
+  }
+
+  @Builder
+  HarborCard(topic: HarborTopic): void {
+    AppCard({
+      clickable: true,
+      cardPadding: 0,
+      surfaceColor: this.theme().themeColorUltraLight,
+      onTap: (): void => {
+        this.openHarborTopic(topic);
+      },
+      content: (): void => {
+        this.HarborCardContent(topic);
+      }
+    })
+  }
+
+  @Builder
+  HarborCardContent(topic: HarborTopic): void {
+    Column() {
+      if (HomeFeedService.harborExcerpt(topic).length > 0) {
+        Text(HomeFeedService.harborExcerpt(topic))
+          .fontSize(12)
+          .fontColor(this.theme().themeColor)
+          .lineHeight(17)
+          .maxLines(5)
+          .textOverflow({ overflow: TextOverflow.Ellipsis })
+          .width('100%')
+          .padding({ left: 10, right: 10, top: 12, bottom: 6 })
+      }
+
+      Column() {
+        Text(HomeFeedService.harborTitle(topic))
+          .fontSize(13)
+          .fontWeight(FontWeight.Bold)
+          .fontColor(this.theme().textPrimary)
+          .lineHeight(18)
           .maxLines(4)
           .textOverflow({ overflow: TextOverflow.Ellipsis })
           .width('100%')
-          .margin({ top: 6 })
+
+        Row() {
+          AppNetworkImage({
+            src: HomeFeedService.harborAvatar(topic),
+            alt: HomeFeedService.harborAuthor(topic),
+            imageHeight: HOME_HARBOR_AVATAR_SIZE,
+            radius: HOME_HARBOR_AVATAR_SIZE / 2
+          })
+          .width(HOME_HARBOR_AVATAR_SIZE)
+          Text(HomeFeedService.harborAuthor(topic))
+            .fontSize(10)
+            .fontColor(this.theme().textTertiary)
+            .fontStyle(FontStyle.Italic)
+            .maxLines(1)
+            .textOverflow({ overflow: TextOverflow.Ellipsis })
+            .layoutWeight(1)
+            .margin({ left: 5 })
+          Text((topic.like_count ?? 0).toString() + ' / ' + (topic.highest_post_number ?? 0).toString() +
+          ' / ' + (topic.views ?? 0).toString())
+            .fontSize(10)
+            .fontColor(this.theme().textTertiary)
+            .maxLines(1)
+        }
+        .width('100%')
+        .alignItems(VerticalAlign.Center)
+        .margin({ top: 8 })
       }
+      .width('100%')
+      .padding({ left: 10, right: 10, top: 9, bottom: 10 })
+      .borderRadius(8)
+      .backgroundColor(this.theme().surfaceColor)
     }
     .width('100%')
   }
 
   @Builder
-  EventPreviewRow(item: UmEventItem): void {
-    AppCard({
-      clickable: true,
-      onTap: (): void => {
-        this.openEvent(item);
-      },
-      content: (): void => {
-        this.EventPreviewRowContent(item);
-      }
-    })
-    .margin({ left: 16, right: 16, bottom: 10 })
-  }
-
-  @Builder
-  EventPreviewRowContent(item: UmEventItem): void {
-    Row() {
-      Column() {
-        Text(this.titleForEvent(item))
-          .fontSize(14)
-          .fontWeight(FontWeight.Bold)
-          .fontColor(this.theme().textPrimary)
-          .lineHeight(20)
-          .maxLines(2)
-          .textOverflow({ overflow: TextOverflow.Ellipsis })
-          .width('100%')
-        Text(InfoFeedService.formatEventTimeRange(item))
-          .fontSize(12)
-          .fontColor(this.theme().textTertiary)
-          .lineHeight(17)
-          .margin({ top: 6 })
-          .width('100%')
-      }
-      .layoutWeight(1)
-      .alignItems(HorizontalAlign.Start)
-      .margin({ right: item.common.posterUrl ? 12 : 0 })
-      if (item.common.posterUrl) {
-        AppNetworkImage({
-          src: InfoFeedService.normalizeImageUrl(item.common.posterUrl),
-          alt: this.localized('活動海報', 'Event poster'),
-          imageHeight: 76,
-          radius: 8
-        })
-        .width(76)
-      }
-    }
-    .width('100%')
-  }
-
-  @Builder
-  EventsPreview(): void {
-    this.SectionTitle(this.localized('近期澳大活動', 'Upcoming UM Events'), this.localized('校曆', 'Calendar'), (): void => {
-      this.openExternal(UM_CALENDAR);
-    })
-    if (this.eventError.length > 0) {
+  HomeFeedWaterfall(): void {
+    if (this.homeFeedError.length > 0 && this.homeFeedItems.length === 0) {
       AppCard({
         content: (): void => {
-          this.EventErrorContent();
+          this.HomeFeedErrorContent();
         }
       })
-      .margin({ left: 16, right: 16, bottom: 14 })
-    } else {
-      ForEach(this.eventPreview, (item: UmEventItem) => {
-        this.EventPreviewRow(item);
-      }, (item: UmEventItem, index: number) => item._id + index.toString())
+      .margin({ left: 16, right: 16, top: 2, bottom: 14 })
+    } else if (this.homeFeedItems.length > 0) {
+      Column() {
+        Row({ space: HOME_WATERFALL_COLUMN_GAP }) {
+          ForEach(this.waterfallColumnIndexes(), (columnIndex: number) => {
+            this.HomeFeedColumn(columnIndex);
+          }, (columnIndex: number) => columnIndex.toString())
+        }
+        .width('100%')
+        .alignItems(VerticalAlign.Top)
+        .onAreaChange((_oldValue: Area, newValue: Area) => {
+          this.updateWaterfallWidth(newValue.width);
+        })
+        this.HomeFeedFooter()
+      }
+      .width('100%')
+      .padding({ left: 16, right: 16, top: 2 })
     }
   }
 
   @Builder
-  EventErrorContent(): void {
-    Text(this.eventError)
-      .fontSize(13)
-      .fontColor(this.theme().textTertiary)
-      .lineHeight(19)
-      .width('100%')
+  HomeFeedColumn(columnIndex: number): void {
+    Column({ space: HOME_WATERFALL_ROW_GAP }) {
+      ForEach(this.homeFeedItemsForColumn(columnIndex), (item: HomeFeedItem) => {
+        this.FeedCard(item);
+      }, (item: HomeFeedItem) => item.key)
+    }
+    .layoutWeight(1)
   }
 
   @Builder
-  FooterActions(): void {
-    AppCard({
-      cardPadding: 0,
-      content: (): void => {
-        this.FooterActionsContent();
-      }
-    })
-    .margin({ left: 16, right: 16, top: 4, bottom: 26 })
-  }
-
-  @Builder
-  FooterActionsContent(): void {
+  HomeFeedErrorContent(): void {
     Column() {
-      AppListItem({
-        title: this.localized('聯絡我們', 'Contact us'),
-        subtitle: ARK_SUPPORT_MAIL,
-        clickable: true,
-        showChevron: true,
-        showDivider: false,
-        onTap: (): void => {
-          this.openExternal('mailto:' + ARK_SUPPORT_MAIL);
-        }
-      })
+      Text(this.homeFeedError)
+        .fontSize(13)
+        .fontColor(this.theme().textTertiary)
+        .lineHeight(19)
+        .width('100%')
+      Button(this.localized('重試', 'Retry'))
+        .height(34)
+        .borderRadius(8)
+        .fontSize(12)
+        .fontColor(Color.White)
+        .backgroundColor(this.theme().themeColor)
+        .margin({ top: 10 })
+        .onClick(() => {
+          this.refreshHomeFeed();
+        })
     }
     .width('100%')
+    .alignItems(HorizontalAlign.Start)
+  }
+
+  @Builder
+  HomeFeedFooter(): void {
+    Column() {
+      if (this.homeFeedLoading) {
+        LoadingProgress()
+          .width(24)
+          .height(24)
+          .color(this.theme().themeColor)
+          .margin({ top: 14, bottom: 8 })
+        Text(this.localized('載入中', 'Loading'))
+          .fontSize(12)
+          .fontColor(this.theme().textTertiary)
+      } else if (this.homeFeedError.length > 0) {
+        Text(this.homeFeedError)
+          .fontSize(12)
+          .fontColor(this.theme().textTertiary)
+          .textAlign(TextAlign.Center)
+          .margin({ top: 12, bottom: 8 })
+        Button(this.localized('重試', 'Retry'))
+          .height(34)
+          .borderRadius(8)
+          .fontSize(12)
+          .fontColor(Color.White)
+          .backgroundColor(this.theme().themeColor)
+          .onClick(() => {
+            this.loadMoreHomeFeed();
+          })
+      } else if (this.homeFeedNoMore) {
+        Text(this.localized('沒有更多內容了', 'No more content'))
+          .fontSize(12)
+          .fontColor(this.theme().textTertiary)
+          .margin({ top: 14, bottom: 4 })
+      } else {
+        Button(this.localized('載入更多', 'Load more'))
+          .height(36)
+          .borderRadius(8)
+          .fontSize(12)
+          .fontColor(Color.White)
+          .backgroundColor(this.theme().themeColor)
+          .margin({ top: 14, bottom: 4 })
+          .onClick(() => {
+            this.loadMoreHomeFeed();
+          })
+      }
+    }
+    .width('100%')
+    .alignItems(HorizontalAlign.Center)
+    .padding({ bottom: 20 })
   }
 
   build() {
@@ -996,11 +1490,8 @@ export struct HomePage {
           } else {
             this.HomeSearchBar()
             this.CalendarBar()
-            this.UpcomingCourseCard()
-            this.QuickActions()
-            this.UpdateCard()
-            this.EventsPreview()
-            this.FooterActions()
+            this.ResponsiveHomeCardsLayout()
+            this.HomeFeedWaterfall()
           }
           Blank()
             .height(ROOT_CONTENT_BOTTOM_PADDING)
@@ -1009,9 +1500,15 @@ export struct HomePage {
         .constraintSize({ minHeight: '100%' })
         .justifyContent(FlexAlign.Start)
         .alignItems(HorizontalAlign.Center)
+        .onAreaChange((_oldValue: Area, newValue: Area) => {
+          this.updatePageViewportWidth(newValue.width);
+        })
       }
       .layoutWeight(1)
       .edgeEffect(EdgeEffect.Spring)
+      .onReachEnd(() => {
+        this.loadMoreHomeFeed();
+      })
     }
     .width('100%')
     .height('100%')

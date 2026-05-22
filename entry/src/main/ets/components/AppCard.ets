@@ -14,6 +14,7 @@ export struct AppCard {
   cardPadding: number = 14;
   surfaceColor: string = '';
   borderVisible: boolean = false;
+  contentJustifyContent: FlexAlign = FlexAlign.Start;
   onTap: () => void = (): void => {};
   @BuilderParam content: () => void = this.EmptySlot;
 
@@ -42,6 +43,7 @@ export struct AppCard {
       this.content();
     }
     .width('100%')
+    .justifyContent(this.contentJustifyContent)
     .padding(this.cardPadding)
     .borderRadius(8)
     .backgroundColor(this.resolvedBackground())

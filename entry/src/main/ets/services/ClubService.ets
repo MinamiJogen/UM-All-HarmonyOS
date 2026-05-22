@@ -1,6 +1,7 @@
 import {
   ARK_GET_CLUB_INFO_ALL,
   ARK_GET_CLUB_INFO_NUM,
+  ARK_GET_EVENT_INFO_ALL,
   ARK_GET_EVENT_INFO_CLUB_NUM_PATH,
   ARK_GET_EVENT_INFO_EVENT_ID,
   addArkHost,
@@ -218,6 +219,32 @@ export class ClubService {
       return errorResult<ClubActivity>('CLUB_EVENT_API_ERROR', result.data.message, result.response);
     }
     return okResult<ClubActivity>(normalizeEvent(result.data.content));
+  }
+
+  static async fetchEvents(page: number = 1, pageSize: number = 10): Promise<ServiceResult<ClubActivityPage>> {
+    const path: string = ARK_GET_EVENT_INFO_ALL + '?num_of_item=' + encodeURIComponent(pageSize.toString()) +
+      '&page=' + encodeURIComponent(page.toString());
+    const result: ServiceResult<ArkPagedListResponse<ClubActivity>> =
+      await ApiClient.get<ArkPagedListResponse<ClubActivity>>(buildArkApiUrl(path));
+    if (!result.ok || !result.data) {
+      return {
+        ok: false,
+        error: result.error,
+        response: result.response
+      };
+    }
+    if (result.data.message !== 'success') {
+      return errorResult<ClubActivityPage>('EVENTS_API_ERROR', result.data.message, result.response);
+    }
+    const events: ClubActivity[] = [];
+    for (let i = 0; i < result.data.content.length; i++) {
+      events.push(normalizeEvent(result.data.content[i]));
+    }
+    return okResult<ClubActivityPage>({
+      events: events,
+      noMore: events.length < pageSize || (result.data.num_pages !== undefined && page >= result.data.num_pages),
+      page: page
+    });
   }
 
   static async fetchClubEvents(clubNum: number, page: number = 1, pageSize: number = 10):
