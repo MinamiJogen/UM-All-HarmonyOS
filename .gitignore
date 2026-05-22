@@ -1,0 +1,31 @@
+# Dependencies
+/node_modules/
+/oh_modules/
+
+# React Native source snapshot
+/ReactNative版本/
+
+# Local machine and IDE state
+/local.properties
+/.idea/
+.DS_Store
+
+# Build outputs and tool caches
+**/build/
+/.hvigor/
+.cxx/
+**/.test/
+/.appanalyzer/
+
+# Logs and temporary files
+*.log
+*.tmp
+*.temp
+*.swp
+*.swo
+*~
+
+# Local C/C++ tooling metadata
+/.clangd
+/.clang-format
+/.clang-tidy

@@ -1,0 +1,4 @@
+registry=https://ohpm.openharmony.cn/ohpm/
+publish_registry=https://ohpm.openharmony.cn/ohpm/
+strict_ssl=true
+no_proxy=ohpm.openharmony.cn

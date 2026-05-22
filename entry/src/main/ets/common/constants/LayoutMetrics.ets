@@ -1,0 +1,6 @@
+export const ROOT_CONTENT_TOP_PADDING: number = 56;
+export const ROOT_TAB_BAR_HEIGHT: number = 64;
+export const ROOT_TAB_BAR_BOTTOM_MARGIN: number = 28;
+export const ROOT_TAB_BAR_CONTENT_GAP: number = 16;
+export const ROOT_CONTENT_BOTTOM_PADDING: number =
+  ROOT_TAB_BAR_HEIGHT + ROOT_TAB_BAR_BOTTOM_MARGIN + ROOT_TAB_BAR_CONTENT_GAP;

@@ -1,0 +1,56 @@
+{
+  "app": {
+    "signingConfigs": [
+      {
+        "name": "default",
+        "type": "HarmonyOS",
+        "material": {
+          "certpath": "/Users/minami/.ohos/config/default_UMARKALL_MdsrPUOpRSsgd4EeOZiDEV-bBgpUSGasYNdMmZblMps=.cer",
+          "keyAlias": "debugKey",
+          "keyPassword": "0000001BEC381FF9DD14B2CC69D20986E6727EA32903C43AE173109ED6503600D12EC89B17632BCEC84699",
+          "profile": "/Users/minami/.ohos/config/default_UMARKALL_MdsrPUOpRSsgd4EeOZiDEV-bBgpUSGasYNdMmZblMps=.p7b",
+          "signAlg": "SHA256withECDSA",
+          "storeFile": "/Users/minami/.ohos/config/default_UMARKALL_MdsrPUOpRSsgd4EeOZiDEV-bBgpUSGasYNdMmZblMps=.p12",
+          "storePassword": "0000001BCCB263F6237D8F73460AFC094AF23A9E42D0834138A551A5E508B330E0F65820CC00EC486F0AD9"
+        }
+      }
+    ],
+    "products": [
+      {
+        "name": "default",
+        "signingConfig": "default",
+        "targetSdkVersion": "6.1.0(23)",
+        "compatibleSdkVersion": "6.1.0(23)",
+        "runtimeOS": "HarmonyOS",
+        "buildOption": {
+          "strictMode": {
+            "caseSensitiveCheck": true,
+            "useNormalizedOHMUrl": true
+          }
+        }
+      }
+    ],
+    "buildModeSet": [
+      {
+        "name": "debug",
+      },
+      {
+        "name": "release"
+      }
+    ]
+  },
+  "modules": [
+    {
+      "name": "entry",
+      "srcPath": "./entry",
+      "targets": [
+        {
+          "name": "default",
+          "applyToProducts": [
+            "default"
+          ]
+        }
+      ]
+    }
+  ]
+}
