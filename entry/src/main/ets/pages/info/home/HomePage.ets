@@ -142,7 +142,7 @@ const HOME_WATERFALL_ROW_GAP: number = 12;
 const HOME_WATERFALL_PREFERRED_ITEM_WIDTH: number = 176;
 const HOME_EVENT_IMAGE_HEIGHT: number = 126;
 const HOME_HARBOR_AVATAR_SIZE: number = 18;
-const HARMONYOS_BETA_FEEDBACK_URL: string = '';
+const HARMONYOS_BETA_FEEDBACK_URL: string = 'https://github.com/MinamiJogen/UM-All-HarmonyOS/issues';
 
 @Component
 export struct HomePage {
