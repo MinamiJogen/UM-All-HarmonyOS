@@ -1,7 +1,7 @@
 import { common } from '@kit.AbilityKit';
 import { UM_MAP } from '../../common/constants/ApiEndpoints';
 import { ROOT_CONTENT_TOP_PADDING } from '../../common/constants/LayoutMetrics';
-import { I18nService, LANGUAGE_EN } from '../../common/i18n/I18nService';
+import { I18nService } from '../../common/i18n/I18nService';
 import { ServiceResult } from '../../common/net/HttpClient';
 import {
   AppThemeColors,
@@ -22,6 +22,12 @@ import {
 import { AnalyticsParams, AnalyticsService } from '../../services/AnalyticsService';
 import { OrganizationService } from '../../services/OrganizationService';
 
+const SEARCH_BAR_TOP_PADDING: number = ROOT_CONTENT_TOP_PADDING + 6;
+const ORG_CARD_PREFERRED_ITEM_WIDTH: number = 312;
+const ORG_CARD_MAX_COLUMNS: number = 3;
+const ORG_CARD_COLUMN_GAP: number = 12;
+const ORG_CARD_ROW_GAP: number = 12;
+
 @Component
 export struct UMOrgPage {
   @Consume('appPathStack') pathStack: NavPathStack;
@@ -34,6 +40,7 @@ export struct UMOrgPage {
   @State searchText: string = '';
   @State loading: boolean = true;
   @State errorMessage: string = '';
+  @State private orgGridWidth: number = 0;
 
   aboutToAppear(): void {
     const params: AnalyticsParams = new AnalyticsParams();
@@ -46,12 +53,12 @@ export struct UMOrgPage {
     return ThemeStore.resolveTheme(this.appThemeMode, this.systemColorMode);
   }
 
-  private isEnglish(): boolean {
-    return I18nService.normalizeLanguage(this.language) === LANGUAGE_EN;
+  private localized(tcText: string, enText: string, ptText: string = '', jaText: string = ''): string {
+    return I18nService.localizeText(this.language, tcText, enText, ptText, jaText);
   }
 
-  private localized(tcText: string, enText: string): string {
-    return this.isEnglish() ? enText : tcText;
+  private dataText(tcText: string, enText: string = ''): string {
+    return I18nService.localizeDataText(this.language, tcText, enText);
   }
 
   private getContext(): common.UIAbilityContext {
@@ -123,6 +130,56 @@ export struct UMOrgPage {
     }
   }
 
+  private lengthToNumber(value: Length): number {
+    if (typeof value === 'number') {
+      return value;
+    }
+    if (typeof value === 'string') {
+      const parsed = Number.parseFloat(value);
+      return Number.isFinite(parsed) ? parsed : 0;
+    }
+    return 0;
+  }
+
+  private updateOrgGridWidth(value: Length): void {
+    const nextWidth = this.lengthToNumber(value);
+    if (nextWidth <= 0) {
+      return;
+    }
+    if (Math.abs(nextWidth - this.orgGridWidth) >= 1) {
+      this.orgGridWidth = nextWidth;
+    }
+  }
+
+  private orgCardColumnCount(): number {
+    if (this.orgGridWidth <= 0) {
+      return 1;
+    }
+    const columns = Math.floor((this.orgGridWidth + ORG_CARD_COLUMN_GAP) /
+      (ORG_CARD_PREFERRED_ITEM_WIDTH + ORG_CARD_COLUMN_GAP));
+    return Math.min(ORG_CARD_MAX_COLUMNS, Math.max(1, columns));
+  }
+
+  private orgCardColumnIndexes(): number[] {
+    const columns = this.orgCardColumnCount();
+    const indexes: number[] = [];
+    for (let index = 0; index < columns; index++) {
+      indexes.push(index);
+    }
+    return indexes;
+  }
+
+  private orgUnitsForColumn(targetColumn: number): UmOrgUnit[] {
+    const columns = this.orgCardColumnCount();
+    const result: UmOrgUnit[] = [];
+    for (let index = 0; index < this.displayOrgData.length; index++) {
+      if (index % columns === targetColumn) {
+        result.push(this.displayOrgData[index]);
+      }
+    }
+    return result;
+  }
+
   @Builder
   SearchBar(): void {
     Column() {
@@ -158,7 +215,7 @@ export struct UMOrgPage {
       .margin({ top: 8 })
     }
     .width('100%')
-    .padding({ left: 16, right: 16, top: 6, bottom: 10 })
+    .padding({ left: 16, right: 16, top: SEARCH_BAR_TOP_PADDING, bottom: 10 })
   }
 
   @Builder
@@ -166,7 +223,7 @@ export struct UMOrgPage {
     Row() {
       Column() {
         Row() {
-          Text(unit.chinUnitName)
+          Text(this.dataText(unit.chinUnitName, unit.chinUnitName))
             .fontSize(16)
             .fontWeight(FontWeight.Bold)
             .fontColor(this.theme().textPrimary)
@@ -212,7 +269,7 @@ export struct UMOrgPage {
   @Builder
   SubUnitPill(subUnit: UmOrgSubUnit): void {
     Column() {
-      Text(subUnit.chinSubUnitName + ' ' + subUnit.subUnitCode)
+      Text(this.dataText(subUnit.chinSubUnitName, subUnit.chinSubUnitName) + ' ' + subUnit.subUnitCode)
         .fontSize(13)
         .fontWeight(FontWeight.Medium)
         .fontColor(this.theme().textSecondary)
@@ -270,62 +327,90 @@ export struct UMOrgPage {
   }
 
   @Builder
-  PageContent(): void {
-    this.SearchBar()
-
-    if (this.loading && this.orgData.length === 0) {
-      Column() {
-        AppLoading({
-          title: this.localized('載入部門資料', 'Loading organizations'),
-          message: this.localized('正在讀取 UM Open Data', 'Reading UM Open Data')
-        })
-      }
-      .layoutWeight(1)
-      .justifyContent(FlexAlign.Center)
-      .padding({ left: 16, right: 16 })
-    } else if (this.errorMessage.length > 0 && this.orgData.length === 0) {
-      Column() {
-        AppEmptyState({
-          title: this.localized('無法讀取部門', 'Unable to load organizations'),
-          description: this.errorMessage,
-          actionText: this.localized('重試', 'Retry'),
-          onAction: (): void => {
-            this.refresh(true);
-          }
-        })
-      }
-      .layoutWeight(1)
-      .justifyContent(FlexAlign.Center)
-    } else if (this.displayOrgData.length === 0) {
-      Column() {
-        AppEmptyState({
-          title: this.localized('沒有搜尋結果', 'No results found'),
-          description: this.localized('請換一個關鍵字，或刷新部門資料。', 'Try another keyword or refresh the organization data.'),
-          actionText: this.localized('清除搜尋', 'Clear search'),
-          onAction: (): void => {
-            this.searchText = '';
-            this.applySearch();
-          }
-        })
-      }
-      .layoutWeight(1)
-      .justifyContent(FlexAlign.Center)
-    } else {
-      Scroll() {
-        Column() {
-          Blank()
-            .height(ROOT_CONTENT_TOP_PADDING)
-          ForEach(this.displayOrgData, (unit: UmOrgUnit, index: number) => {
-            this.OrgCard(unit);
-          }, (unit: UmOrgUnit, index: number) => unit.unitCode + index.toString())
-        }
-        .width('100%')
-        .constraintSize({ minHeight: '100%' })
-        .justifyContent(FlexAlign.Start)
-        .padding({ left: 16, right: 16, bottom: 16 })
-      }
-      .layoutWeight(1)
+  OrgCardColumn(columnIndex: number): void {
+    Column({ space: ORG_CARD_ROW_GAP }) {
+      ForEach(this.orgUnitsForColumn(columnIndex), (unit: UmOrgUnit, index: number) => {
+        this.OrgCard(unit);
+      }, (unit: UmOrgUnit, index: number) => unit.unitCode + index.toString())
     }
+    .layoutWeight(1)
+  }
+
+  @Builder
+  OrgCardGrid(): void {
+    Column() {
+      Row({ space: ORG_CARD_COLUMN_GAP }) {
+        ForEach(this.orgCardColumnIndexes(), (columnIndex: number) => {
+          this.OrgCardColumn(columnIndex);
+        }, (columnIndex: number) => columnIndex.toString())
+      }
+      .width('100%')
+      .alignItems(VerticalAlign.Top)
+      .onAreaChange((_oldValue: Area, newValue: Area) => {
+        this.updateOrgGridWidth(newValue.width);
+      })
+    }
+    .width('100%')
+    .padding({ left: 16, right: 16, bottom: 16 })
+  }
+
+  @Builder
+  PageContent(): void {
+    Scroll() {
+      Column() {
+        this.SearchBar()
+
+        if (this.loading && this.orgData.length === 0) {
+          Column() {
+            AppLoading({
+              title: this.localized('載入部門資料', 'Loading organizations'),
+              message: this.localized('正在讀取 UM Open Data', 'Reading UM Open Data')
+            })
+          }
+          .width('100%')
+          .constraintSize({ minHeight: 360 })
+          .justifyContent(FlexAlign.Center)
+          .padding({ left: 16, right: 16 })
+        } else if (this.errorMessage.length > 0 && this.orgData.length === 0) {
+          Column() {
+            AppEmptyState({
+              title: this.localized('無法讀取部門', 'Unable to load organizations'),
+              description: this.errorMessage,
+              actionText: this.localized('重試', 'Retry'),
+              onAction: (): void => {
+                this.refresh(true);
+              }
+            })
+          }
+          .width('100%')
+          .constraintSize({ minHeight: 360 })
+          .justifyContent(FlexAlign.Center)
+          .padding({ left: 16, right: 16 })
+        } else if (this.displayOrgData.length === 0) {
+          Column() {
+            AppEmptyState({
+              title: this.localized('沒有搜尋結果', 'No results found'),
+              description: this.localized('請換一個關鍵字，或刷新部門資料。', 'Try another keyword or refresh the organization data.'),
+              actionText: this.localized('清除搜尋', 'Clear search'),
+              onAction: (): void => {
+                this.searchText = '';
+                this.applySearch();
+              }
+            })
+          }
+          .width('100%')
+          .constraintSize({ minHeight: 360 })
+          .justifyContent(FlexAlign.Center)
+          .padding({ left: 16, right: 16 })
+        } else {
+          this.OrgCardGrid()
+        }
+      }
+      .width('100%')
+      .constraintSize({ minHeight: '100%' })
+      .justifyContent(FlexAlign.Start)
+    }
+    .layoutWeight(1)
   }
 
   build() {

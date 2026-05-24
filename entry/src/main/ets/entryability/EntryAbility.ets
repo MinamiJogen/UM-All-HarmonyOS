@@ -2,17 +2,30 @@ import { AbilityConstant, ConfigurationConstant, UIAbility, Want } from '@kit.Ab
 import { hilog } from '@kit.PerformanceAnalysisKit';
 import { window } from '@kit.ArkUI';
 import { AppBootstrap } from '../app/AppBootstrap';
+import {
+  APP_STORAGE_LAUNCH_SEQUENCE,
+  APP_STORAGE_LAUNCH_TARGET,
+  LAUNCH_PARAM_TARGET,
+  LAUNCH_TARGET_TIMETABLE
+} from '../common/constants/LaunchTargets';
 
 const DOMAIN = 0x0000;
+let launchSequence: number = 0;
 
 export default class EntryAbility extends UIAbility {
   onCreate(want: Want, launchParam: AbilityConstant.LaunchParam): void {
+    this.applyLaunchTarget(want);
     try {
       this.context.getApplicationContext().setColorMode(ConfigurationConstant.ColorMode.COLOR_MODE_NOT_SET);
     } catch (err) {
       hilog.error(DOMAIN, 'testTag', 'Failed to set colorMode. Cause: %{public}s', JSON.stringify(err));
     }
     hilog.info(DOMAIN, 'testTag', '%{public}s', 'Ability onCreate');
+  }
+
+  onNewWant(want: Want, launchParam: AbilityConstant.LaunchParam): void {
+    this.applyLaunchTarget(want);
+    hilog.info(DOMAIN, 'testTag', '%{public}s', 'Ability onNewWant');
   }
 
   onDestroy(): void {
@@ -58,6 +71,29 @@ export default class EntryAbility extends UIAbility {
     } catch (err) {
       hilog.error(DOMAIN, 'testTag', 'Failed to get main window. Cause: %{public}s', JSON.stringify(err));
     }
+  }
+
+  private applyLaunchTarget(want: Want): void {
+    const target: string = this.getStringParam(want, LAUNCH_PARAM_TARGET);
+    if (target !== LAUNCH_TARGET_TIMETABLE) {
+      return;
+    }
+
+    launchSequence++;
+    AppStorage.setOrCreate<string>(APP_STORAGE_LAUNCH_TARGET, LAUNCH_TARGET_TIMETABLE);
+    AppStorage.setOrCreate<number>(APP_STORAGE_LAUNCH_SEQUENCE, launchSequence);
+  }
+
+  private getStringParam(want: Want, key: string): string {
+    if (want.parameters === undefined) {
+      return '';
+    }
+
+    const value: Object | undefined = want.parameters[key];
+    if (value === undefined || value === null) {
+      return '';
+    }
+    return value.toString();
   }
 
   onWindowStageDestroy(): void {

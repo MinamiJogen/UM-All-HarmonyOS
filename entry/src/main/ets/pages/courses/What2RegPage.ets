@@ -12,7 +12,7 @@ import {
   ROOT_CONTENT_TOP_PADDING
 } from '../../common/constants/LayoutMetrics';
 import { ROOT_TAB_TIMETABLE } from '../../common/constants/TabIndexes';
-import { I18nService, LANGUAGE_EN } from '../../common/i18n/I18nService';
+import { I18nService } from '../../common/i18n/I18nService';
 import { CourseSimNavigationState } from '../../common/navigation/CourseSimNavigationState';
 import { LocalCourseNavigationState } from '../../common/navigation/LocalCourseNavigationState';
 import { ServiceResult } from '../../common/net/HttpClient';
@@ -49,8 +49,7 @@ import {
   COURSE_MODE_LABELS_EN,
   COURSE_MODE_LABELS_TC,
   COURSE_MODE_PRE_ENROLL,
-  CourseCatalogService,
-  CourseCodeLabel
+  CourseCatalogService
 } from '../../services/CourseCatalogService';
 import { CourseDataService, CourseUpdateSummary } from '../../services/CourseDataService';
 import { UmehHostService, UmehHostState } from '../../services/UmehHostService';
@@ -111,12 +110,12 @@ export struct What2RegPage {
     return ThemeStore.resolveTheme(this.appThemeMode, this.systemColorMode);
   }
 
-  private isEnglish(): boolean {
-    return I18nService.normalizeLanguage(this.language) === LANGUAGE_EN;
+  private localized(tcText: string, enText: string, ptText: string = '', jaText: string = ''): string {
+    return I18nService.localizeText(this.language, tcText, enText, ptText, jaText);
   }
 
-  private localized(tcText: string, enText: string): string {
-    return this.isEnglish() ? enText : tcText;
+  private dataText(tcText: string, enText: string = ''): string {
+    return I18nService.localizeDataText(this.language, tcText, enText);
   }
 
   private getContext(): common.UIAbilityContext {
@@ -140,12 +139,13 @@ export struct What2RegPage {
   }
 
   private modeOptions(): AppSegmentOption[] {
-    const labels: CourseCodeLabel[] = this.isEnglish() ? COURSE_MODE_LABELS_EN : COURSE_MODE_LABELS_TC;
     const result: AppSegmentOption[] = [];
-    for (let i = 0; i < labels.length; i++) {
+    for (let i = 0; i < COURSE_MODE_LABELS_TC.length; i++) {
+      const enLabel: string = i < COURSE_MODE_LABELS_EN.length ? COURSE_MODE_LABELS_EN[i].label :
+      COURSE_MODE_LABELS_TC[i].label;
       result.push({
-        key: labels[i].code,
-        label: labels[i].label
+        key: COURSE_MODE_LABELS_TC[i].code,
+        label: this.dataText(COURSE_MODE_LABELS_TC[i].label, enLabel)
       });
     }
     return result;
@@ -156,7 +156,7 @@ export struct What2RegPage {
     for (let i = 0; i < this.facultyList.length; i++) {
       result.push({
         key: this.facultyList[i],
-        label: this.facultyList[i]
+        label: this.dataText(this.facultyList[i], this.facultyList[i])
       });
     }
     return result;
@@ -167,7 +167,7 @@ export struct What2RegPage {
     for (let i = 0; i < this.departmentList.length; i++) {
       result.push({
         key: this.departmentList[i],
-        label: this.departmentList[i]
+        label: this.dataText(this.departmentList[i], this.departmentList[i])
       });
     }
     return result;
@@ -178,7 +178,7 @@ export struct What2RegPage {
     for (let i = 0; i < this.geList.length; i++) {
       result.push({
         key: this.geList[i],
-        label: this.geList[i]
+        label: this.dataText(this.geList[i], this.geList[i])
       });
     }
     return result;
@@ -386,9 +386,9 @@ export struct What2RegPage {
   private selectCourse(item: CourseCatalogItem): void {
     this.selectedCourseCode = this.courseCode(item);
     this.selectedCourseTitle = this.courseTitle(item);
-    this.selectedCourseTitleChi = safeText(item.courseTitleChi);
-    this.selectedCourseUnit = item.offeringUnit;
-    this.selectedCourseDepartment = item.offeringDepartment;
+    this.selectedCourseTitleChi = this.dataText(safeText(item.courseTitleChi), safeText(item.courseTitleChi));
+    this.selectedCourseUnit = this.dataText(item.offeringUnit, item.offeringUnit);
+    this.selectedCourseDepartment = this.dataText(item.offeringDepartment, item.offeringDepartment);
     this.showCourseSheet = true;
   }
 
@@ -707,7 +707,7 @@ export struct What2RegPage {
         .margin({ top: 9 })
 
       if (safeText(item.courseTitleChi).length > 0) {
-        Text(safeText(item.courseTitleChi))
+        Text(this.dataText(safeText(item.courseTitleChi), safeText(item.courseTitleChi)))
           .fontSize(14)
           .fontColor(this.theme().textSecondary)
           .width('100%')
@@ -716,7 +716,8 @@ export struct What2RegPage {
           .margin({ top: 4 })
       }
 
-      Text(item.offeringUnit + ' / ' + item.offeringDepartment)
+      Text(this.dataText(item.offeringUnit, item.offeringUnit) + ' / ' +
+      this.dataText(item.offeringDepartment, item.offeringDepartment))
         .fontSize(12)
         .fontColor(this.theme().textTertiary)
         .width('100%')

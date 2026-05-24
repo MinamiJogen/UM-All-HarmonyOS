@@ -1,7 +1,7 @@
 import { common } from '@kit.AbilityKit';
 import webview from '@ohos.web.webview';
 import { WebNavigationState } from '../../common/navigation/WebNavigationState';
-import { I18nService, LANGUAGE_EN } from '../../common/i18n/I18nService';
+import { I18nService } from '../../common/i18n/I18nService';
 import {
   AppThemeColors,
   ARKUI_COLOR_MODE_LIGHT,
@@ -58,12 +58,8 @@ export struct WebViewerPage {
     return ThemeStore.resolveTheme(this.appThemeMode, this.systemColorMode);
   }
 
-  private isEnglish(): boolean {
-    return I18nService.normalizeLanguage(this.language) === LANGUAGE_EN;
-  }
-
-  private localized(tcText: string, enText: string): string {
-    return this.isEnglish() ? enText : tcText;
+  private localized(tcText: string, enText: string, ptText: string = '', jaText: string = ''): string {
+    return I18nService.localizeText(this.language, tcText, enText, ptText, jaText);
   }
 
   private getContext(): common.UIAbilityContext {

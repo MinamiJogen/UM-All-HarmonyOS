@@ -6,7 +6,7 @@ import {
   ARKUI_COLOR_MODE_LIGHT,
   ThemeStore
 } from '../../../common/theme/AppTheme';
-import { I18nService, LANGUAGE_EN } from '../../../common/i18n/I18nService';
+import { I18nService, LANGUAGE_PT } from '../../../common/i18n/I18nService';
 import { OpenLink } from '../../../common/utils/OpenLink';
 import { AppCard } from '../../../components/AppCard';
 import { AppEmptyState } from '../../../components/AppEmptyState';
@@ -28,6 +28,7 @@ import {
   NewsDetail,
   NewsItem,
   OPEN_DATA_LOCALE_EN_US,
+  OPEN_DATA_LOCALE_PT_PT,
   OPEN_DATA_LOCALE_ZH_TW
 } from '../../../models/News';
 
@@ -58,9 +59,7 @@ export struct NewsDetailPage {
     if (selected) {
       this.news = selected;
       this.hasNews = true;
-      const preferred: string = this.preferredLocale();
-      const detail: NewsDetail | undefined = InfoFeedService.findDetail<NewsDetail>(selected.details, preferred);
-      this.selectedLocale = detail ? preferred : (selected.details.length > 0 ? selected.details[0].locale : preferred);
+      this.selectedLocale = this.initialSelectedLocale(selected);
       this.refreshSimplifiedContent();
     }
     const params: AnalyticsParams = new AnalyticsParams();
@@ -72,16 +71,39 @@ export struct NewsDetailPage {
     return ThemeStore.resolveTheme(this.appThemeMode, this.systemColorMode);
   }
 
-  private isEnglish(): boolean {
-    return I18nService.normalizeLanguage(this.language) === LANGUAGE_EN;
+  private isPortuguese(): boolean {
+    return I18nService.normalizeLanguage(this.language) === LANGUAGE_PT;
   }
 
-  private localized(tcText: string, enText: string): string {
-    return this.isEnglish() ? enText : tcText;
+  private localized(tcText: string, enText: string, ptText: string = '', jaText: string = ''): string {
+    return I18nService.localizeText(this.language, tcText, enText, ptText, jaText);
   }
 
   private preferredLocale(): string {
-    return this.isEnglish() ? OPEN_DATA_LOCALE_EN_US : OPEN_DATA_LOCALE_ZH_TW;
+    if (this.isPortuguese()) {
+      return OPEN_DATA_LOCALE_PT_PT;
+    }
+    return I18nService.isEnglishLike(this.language) ? OPEN_DATA_LOCALE_EN_US : OPEN_DATA_LOCALE_ZH_TW;
+  }
+
+  private openDataText(text: string, locale: string): string {
+    return locale === OPEN_DATA_LOCALE_ZH_TW ? I18nService.localizeDataText(this.language, text, text) : text;
+  }
+
+  private initialSelectedLocale(item: NewsItem): string {
+    const preferred: string = this.preferredLocale();
+    if (InfoFeedService.findDetail<NewsDetail>(item.details, preferred)) {
+      return preferred;
+    }
+    if (preferred !== OPEN_DATA_LOCALE_EN_US &&
+      InfoFeedService.findDetail<NewsDetail>(item.details, OPEN_DATA_LOCALE_EN_US)) {
+      return OPEN_DATA_LOCALE_EN_US;
+    }
+    if (preferred !== OPEN_DATA_LOCALE_ZH_TW &&
+      InfoFeedService.findDetail<NewsDetail>(item.details, OPEN_DATA_LOCALE_ZH_TW)) {
+      return OPEN_DATA_LOCALE_ZH_TW;
+    }
+    return item.details.length > 0 ? item.details[0].locale : preferred;
   }
 
   private getContext(): common.UIAbilityContext {
@@ -161,15 +183,26 @@ export struct NewsDetailPage {
 
   private title(): string {
     const title: string = this.cleanText(this.currentDetail()?.title);
-    return title.length > 0 ? title : this.localized('新聞詳情', 'News Detail');
+    return title.length > 0 ? this.openDataText(title, this.selectedLocale) :
+    this.localized('新聞詳情', 'News Detail', 'Detalhes da notícia');
   }
 
   private contentText(): string {
-    return this.detailContentText;
+    return this.openDataText(this.detailContentText, this.selectedLocale);
   }
 
   private contentLinks(): HtmlLink[] {
-    return this.detailContentLinks;
+    if (this.selectedLocale !== OPEN_DATA_LOCALE_ZH_TW) {
+      return this.detailContentLinks;
+    }
+    const result: HtmlLink[] = [];
+    for (let i = 0; i < this.detailContentLinks.length; i++) {
+      result.push({
+        label: this.openDataText(this.detailContentLinks[i].label, this.selectedLocale),
+        url: this.detailContentLinks[i].url
+      });
+    }
+    return result;
   }
 
   private imageUrls(): string[] {
@@ -179,7 +212,8 @@ export struct NewsDetailPage {
   private async openExternal(url: string): Promise<void> {
     const success: boolean = await OpenLink.open(this.getContext(), url);
     if (!success) {
-      AppToast.showError(this.getUIContext(), this.localized('無法打開鏈接', 'Unable to open link'));
+      AppToast.showError(this.getUIContext(),
+        this.localized('無法打開鏈接', 'Unable to open link', 'Não foi possível abrir a ligação'));
     }
   }
 
@@ -208,7 +242,7 @@ export struct NewsDetailPage {
         ForEach(this.imageUrls(), (url: string, index: number) => {
           AppNetworkImage({
             src: url,
-            alt: this.localized('新聞圖片', 'News image'),
+            alt: this.localized('新聞圖片', 'News image', 'Imagem da notícia'),
             imageHeight: this.imageUrls().length === 1 ? 230 : 170,
             radius: 8
           })
@@ -223,7 +257,7 @@ export struct NewsDetailPage {
   @Builder
   LinkList(): void {
     if (this.contentLinks().length > 0) {
-      Text(this.localized('鏈接', 'Links'))
+      Text(this.localized('鏈接', 'Links', 'Ligações'))
         .fontSize(13)
         .fontWeight(FontWeight.Bold)
         .fontColor(this.theme().textTertiary)
@@ -277,7 +311,7 @@ export struct NewsDetailPage {
           .padding({ left: 16, right: 16 })
           .margin({ top: 4 })
 
-        Text(this.localized('Update: ', 'Update: ') +
+        Text(this.localized('Update: ', 'Update: ', 'Atualização: ') +
         InfoFeedService.formatDate(InfoFeedService.publishDateForNews(this.news)))
           .fontSize(13)
           .fontWeight(FontWeight.Medium)
@@ -309,7 +343,7 @@ export struct NewsDetailPage {
   @Builder
   BodyCardContent(): void {
     Text(this.contentText().length > 0 ? this.contentText() :
-    this.localized('暫無正文內容', 'No content available'))
+    this.localized('暫無正文內容', 'No content available', 'Sem conteúdo disponível'))
       .fontSize(15)
       .fontColor(this.theme().textSecondary)
       .lineHeight(23)
@@ -322,9 +356,10 @@ export struct NewsDetailPage {
     if (!this.hasNews) {
       Column() {
         AppEmptyState({
-          title: this.localized('沒有新聞資料', 'No news data'),
-          description: this.localized('請從新聞列表重新打開。', 'Open a news item from the list again.'),
-          actionText: this.localized('返回', 'Back'),
+          title: this.localized('沒有新聞資料', 'No news data', 'Sem dados da notícia'),
+          description: this.localized('請從新聞列表重新打開。', 'Open a news item from the list again.',
+            'Abra novamente a partir da lista de notícias.'),
+          actionText: this.localized('返回', 'Back', 'Voltar'),
           onAction: (): void => {
             this.pathStack.pop();
           }
@@ -339,8 +374,8 @@ export struct NewsDetailPage {
 
   build() {
     AppHdsPage({
-      title: this.localized('新聞詳情', 'News Detail'),
-      backLabel: this.localized('返回', 'Back'),
+      title: this.localized('新聞詳情', 'News Detail', 'Detalhes da notícia'),
+      backLabel: this.localized('返回', 'Back', 'Voltar'),
       onBack: (): void => {
         this.pathStack.pop();
       },

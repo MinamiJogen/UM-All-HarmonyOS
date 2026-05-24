@@ -14,7 +14,7 @@ import {
 } from '../../common/constants/ApiEndpoints';
 import { ROOT_CONTENT_TOP_PADDING } from '../../common/constants/LayoutMetrics';
 import { CACHE_RESET_STORAGE_KEYS } from '../../common/constants/StorageKeys';
-import { I18nService, LANGUAGE_EN, LANGUAGE_TC } from '../../common/i18n/I18nService';
+import { I18nService, LANGUAGE_EN, LANGUAGE_JA, LANGUAGE_PT, LANGUAGE_SC, LANGUAGE_TC } from '../../common/i18n/I18nService';
 import { AppOpenLinkOptions, OpenLink } from '../../common/utils/OpenLink';
 import {
   AppThemeColors,
@@ -78,8 +78,11 @@ export struct SettingPage {
 
   private languageOptions(): AppSegmentOption[] {
     return [
-      { key: LANGUAGE_TC, label: this.text('setting.CHINESE_SHORT', '繁中') },
-      { key: LANGUAGE_EN, label: this.text('setting.ENGLISH_SHORT', 'EN') }
+      { key: LANGUAGE_SC, label: '简体中文' },
+      { key: LANGUAGE_TC, label: '正體中文' },
+      { key: LANGUAGE_EN, label: 'English' },
+      { key: LANGUAGE_PT, label: 'Português' },
+      { key: LANGUAGE_JA, label: '日本語' }
     ];
   }
 
@@ -92,7 +95,52 @@ export struct SettingPage {
   }
 
   private languageIndex(): number {
-    return this.language === LANGUAGE_EN ? 1 : 0;
+    switch (I18nService.normalizeLanguage(this.language)) {
+      case LANGUAGE_SC:
+        return 0;
+      case LANGUAGE_TC:
+        return 1;
+      case LANGUAGE_EN:
+        return 2;
+      case LANGUAGE_PT:
+        return 3;
+      case LANGUAGE_JA:
+        return 4;
+      default:
+        return 0;
+    }
+  }
+
+  private languageAt(index: number): string {
+    if (index === 0) {
+      return LANGUAGE_SC;
+    }
+    if (index === 1) {
+      return LANGUAGE_TC;
+    }
+    if (index === 2) {
+      return LANGUAGE_EN;
+    }
+    if (index === 3) {
+      return LANGUAGE_PT;
+    }
+    return LANGUAGE_JA;
+  }
+
+  private languageLabel(language: string): string {
+    switch (I18nService.normalizeLanguage(language)) {
+      case LANGUAGE_SC:
+        return '简体中文';
+      case LANGUAGE_TC:
+        return '正體中文';
+      case LANGUAGE_PT:
+        return 'Português';
+      case LANGUAGE_JA:
+        return '日本語';
+      case LANGUAGE_EN:
+      default:
+        return 'English';
+    }
   }
 
   private themeIndex(): number {
@@ -197,9 +245,7 @@ export struct SettingPage {
     this.busy = true;
     await I18nService.setLanguage(this.getContext(), language);
     this.language = I18nService.normalizeLanguage(language);
-    this.localMessage = this.text('setting.LANGUAGE', 'Language') + ': ' +
-      (this.language === LANGUAGE_EN ? this.text('setting.ENGLISH', 'English') :
-      this.text('setting.CHINESE', '繁体中文'));
+    this.localMessage = this.text('setting.LANGUAGE', 'Language') + ': ' + this.languageLabel(this.language);
     this.busy = false;
   }
 
@@ -352,9 +398,10 @@ export struct SettingPage {
       AppSegmentedControl({
         options: this.languageOptions(),
         selectedIndex: this.languageIndex(),
+        wrap: true,
         disabled: this.busy,
         onChange: (index: number): void => {
-          this.setLanguage(index === 1 ? LANGUAGE_EN : LANGUAGE_TC);
+          this.setLanguage(this.languageAt(index));
         }
       })
     }

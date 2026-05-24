@@ -27,7 +27,7 @@ import {
 } from '../../../common/navigation/InfoRefreshRegistry';
 import { WebNavigationState } from '../../../common/navigation/WebNavigationState';
 import { ServiceResult } from '../../../common/net/HttpClient';
-import { I18nService, LANGUAGE_EN } from '../../../common/i18n/I18nService';
+import { I18nService } from '../../../common/i18n/I18nService';
 import {
   AppThemeColors,
   ARKUI_COLOR_MODE_LIGHT,
@@ -67,9 +67,17 @@ function emptyHomeCourse(): TimetableHomeCacheItem {
   return {
     courseCode: '',
     section: '',
+    courseTitle: '',
+    courseTitleChi: '',
     timeFrom: '',
+    timeTo: '',
+    classroom: '',
     color: 0
   };
+}
+
+function safeHomeText(value: string | undefined): string {
+  return value ?? '';
 }
 
 function calendarValue(block: string, key: string): string {
@@ -163,8 +171,10 @@ export struct HomePage {
   @State private upcomingPanelContentHeight: number = 20;
   @State private quickActionsPanelContentHeight: number = 66;
   @State private updatePanelContentHeight: number = 100;
+  @State private homeCardsUseMeasuredHeight: boolean = true;
   @BuilderParam topContent: () => void = this.EmptySlot;
   private loaded: boolean = false;
+  private homeCardsRemeasureTicket: number = 0;
   private refreshHandler: InfoRefreshHandler = (): void => {
     this.refresh(true);
   };
@@ -196,12 +206,12 @@ export struct HomePage {
     return ThemeStore.resolveTheme(this.appThemeMode, this.systemColorMode);
   }
 
-  private isEnglish(): boolean {
-    return I18nService.normalizeLanguage(this.language) === LANGUAGE_EN;
+  private localized(tcText: string, enText: string, ptText: string = '', jaText: string = ''): string {
+    return I18nService.localizeText(this.language, tcText, enText, ptText, jaText);
   }
 
-  private localized(tcText: string, enText: string): string {
-    return this.isEnglish() ? enText : tcText;
+  private dataText(tcText: string, enText: string = ''): string {
+    return I18nService.localizeDataText(this.language, tcText, enText);
   }
 
   private getContext(): common.UIAbilityContext {
@@ -440,7 +450,7 @@ export struct HomePage {
     if ((event.type ?? '') === 'WEBSITE' && (event.link ?? '').length > 0) {
       WebNavigationState.setLink({
         url: event.link ?? '',
-        title: event.title ?? this.localized('網頁', 'Web')
+        title: event.title ? this.dataText(event.title, event.title) : this.localized('網頁', 'Web')
       });
       this.pathStack.pushPathByName(ROUTE_WEBVIEWER, null);
       return;
@@ -482,7 +492,19 @@ export struct HomePage {
     const nextWidth: number = this.lengthToNumber(value);
     if (nextWidth > 0 && Math.abs(nextWidth - this.pageViewportWidth) >= 1) {
       this.pageViewportWidth = nextWidth;
+      this.requestHomeCardsRemeasure();
     }
+  }
+
+  private requestHomeCardsRemeasure(): void {
+    this.homeCardsUseMeasuredHeight = false;
+    this.homeCardsRemeasureTicket++;
+    const ticket: number = this.homeCardsRemeasureTicket;
+    setTimeout(() => {
+      if (ticket === this.homeCardsRemeasureTicket) {
+        this.homeCardsUseMeasuredHeight = true;
+      }
+    }, 80);
   }
 
   private isPhoneLayout(): boolean {
@@ -644,7 +666,7 @@ export struct HomePage {
     const dayIndex: number = parsed.getDay();
     const tc: string[] = ['周日', '周一', '周二', '周三', '周四', '周五', '周六'];
     const en: string[] = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
-    return this.isEnglish() ? en[dayIndex] : tc[dayIndex];
+    return this.dataText(tc[dayIndex], en[dayIndex]);
   }
 
   private calendarRangeText(item: HomeCalendarItem): string {
@@ -659,15 +681,78 @@ export struct HomePage {
   }
 
   private calendarSummaryText(item: HomeCalendarItem): string {
-    if (this.isEnglish() || item.summaryCn.length === 0) {
+    if (I18nService.isEnglishLike(this.language) || item.summaryCn.length === 0) {
       return item.summary;
     }
-    return item.summary + '\n' + item.summaryCn;
+    return item.summary + '\n' + this.dataText(item.summaryCn, item.summary);
   }
 
   private calendarIsEssential(item: HomeCalendarItem): boolean {
     const summary: string = item.summary.toUpperCase();
     return summary.includes('EXAM') || (summary.includes('SEMESTER') && !summary.includes('BREAK'));
+  }
+
+  private upcomingCourseName(): string {
+    const courseTitleChi: string = safeHomeText(this.upcomingCourse.courseTitleChi);
+    const courseTitle: string = safeHomeText(this.upcomingCourse.courseTitle);
+    if (!I18nService.isEnglishLike(this.language) && courseTitleChi.length > 0) {
+      return this.dataText(courseTitleChi, courseTitle);
+    }
+    if (courseTitle.length > 0) {
+      return courseTitle;
+    }
+    if (courseTitleChi.length > 0) {
+      return this.dataText(courseTitleChi, courseTitleChi);
+    }
+    return this.upcomingCourse.courseCode;
+  }
+
+  private upcomingCourseCodeAndName(): string {
+    const courseName: string = this.upcomingCourseName();
+    if (courseName.length === 0 || courseName === this.upcomingCourse.courseCode) {
+      return this.upcomingCourse.courseCode;
+    }
+    return this.upcomingCourse.courseCode + ' ' + courseName;
+  }
+
+  private upcomingTimeRange(): string {
+    const timeFrom: string = safeHomeText(this.upcomingCourse.timeFrom);
+    const timeTo: string = safeHomeText(this.upcomingCourse.timeTo);
+    if (timeTo.length === 0) {
+      return timeFrom;
+    }
+    return timeFrom + ' - ' + timeTo;
+  }
+
+  private upcomingTimeLine(): string {
+    return this.localized('時間：', 'Time: ') + this.upcomingTimeRange();
+  }
+
+  private upcomingLocation(): string {
+    const classroom: string = safeHomeText(this.upcomingCourse.classroom);
+    return classroom.length > 0 ? classroom : this.localized('地點待定', 'Location TBA');
+  }
+
+  private upcomingLocationLine(): string {
+    return this.localized('地點：', 'Location: ') + this.upcomingLocation();
+  }
+
+  private upcomingTimeAndLocation(): string {
+    const timeText: string = this.upcomingTimeRange();
+    const location: string = this.upcomingLocation();
+    if (timeText.length > 0) {
+      return timeText + ' ' + location;
+    }
+    return location;
+  }
+
+  private upcomingCompactTimeAndLocation(): string {
+    const timeText: string = safeHomeText(this.upcomingCourse.timeFrom);
+    const location: string = this.upcomingLocation();
+    if (timeText.length > 0) {
+      return timeText + ' ' + location;
+    }
+    return location;
   }
 
   @Builder
@@ -915,6 +1000,7 @@ export struct HomePage {
     if (targetHeight > 0) {
       AppCard({
         clickable: true,
+        cardHeight: targetHeight,
         contentJustifyContent: FlexAlign.Center,
         surfaceColor: this.hasUpcomingCourse ? this.theme().themeColorUltraLight : this.theme().surfaceAltColor,
         onTap: (): void => {
@@ -924,7 +1010,6 @@ export struct HomePage {
           this.UpcomingCourseContent();
         }
       })
-      .height(targetHeight)
     } else {
       AppCard({
         clickable: true,
@@ -951,29 +1036,138 @@ export struct HomePage {
 
   @Builder
   UpcomingCourseContent(): void {
+    if (!this.hasUpcomingCourse) {
+      this.EmptyUpcomingCourseContent()
+    } else if (this.isPhoneLayout()) {
+      this.PhoneUpcomingCourseContent()
+    } else if (this.isFoldLayout()) {
+      this.FoldUpcomingCourseContent()
+    } else {
+      this.ExpandedUpcomingCourseContent()
+    }
+  }
+
+  @Builder
+  EmptyUpcomingCourseContent(): void {
     Row() {
-      Text(this.hasUpcomingCourse ? this.localized('下節課', 'Next class') :
-      this.localized('接下來無課程', 'No upcoming class'))
+      Text(this.localized('接下來無課程', 'No upcoming class'))
         .fontSize(14)
         .fontWeight(FontWeight.Bold)
         .fontColor(this.theme().textPrimary)
         .maxLines(1)
         .textOverflow({ overflow: TextOverflow.Ellipsis })
         .layoutWeight(1)
-      if (this.hasUpcomingCourse) {
-        Text(this.upcomingCourse.courseCode + ' ' + this.upcomingCourse.timeFrom)
-          .fontSize(14)
-          .fontWeight(FontWeight.Bold)
+      Text(this.localized('查看課表', 'Open timetable'))
+        .fontSize(13)
+        .fontWeight(FontWeight.Bold)
+        .fontColor(this.theme().textTertiary)
+        .maxLines(1)
+        .textOverflow({ overflow: TextOverflow.Ellipsis })
+    }
+    .width('100%')
+    .onAreaChange((_oldValue: Area, newValue: Area) => {
+      this.updateUpcomingPanelContentHeight(newValue.height);
+    })
+  }
+
+  @Builder
+  PhoneUpcomingCourseContent(): void {
+    Row() {
+      Text(this.localized('下節課', 'Next class'))
+        .fontSize(14)
+        .fontWeight(FontWeight.Bold)
+        .fontColor(this.theme().textSecondary)
+        .maxLines(1)
+        .textOverflow({ overflow: TextOverflow.Ellipsis })
+        .width(58)
+      Text() {
+        Span(this.upcomingCourse.courseCode)
           .fontColor(this.theme().themeColor)
-          .maxLines(1)
-          .textOverflow({ overflow: TextOverflow.Ellipsis })
-      } else {
-        Text(this.localized('查看課表', 'Open timetable'))
-          .fontSize(13)
-          .fontColor(this.theme().textTertiary)
-          .maxLines(1)
-          .textOverflow({ overflow: TextOverflow.Ellipsis })
+          .fontWeight(FontWeight.Bold)
+        Span(' ' + this.upcomingCompactTimeAndLocation())
+          .fontColor(this.theme().textPrimary)
+          .fontWeight(FontWeight.Bold)
       }
+      .fontSize(14)
+      .fontWeight(FontWeight.Bold)
+      .maxLines(1)
+      .textOverflow({ overflow: TextOverflow.Ellipsis })
+      .textAlign(TextAlign.End)
+      .layoutWeight(1)
+    }
+    .width('100%')
+    .onAreaChange((_oldValue: Area, newValue: Area) => {
+      this.updateUpcomingPanelContentHeight(newValue.height);
+    })
+  }
+
+  @Builder
+  FoldUpcomingCourseContent(): void {
+    Column() {
+      Text(this.localized('下節課', 'Next class'))
+        .fontSize(14)
+        .fontWeight(FontWeight.Bold)
+        .fontColor(this.theme().textSecondary)
+        .maxLines(1)
+        .textOverflow({ overflow: TextOverflow.Ellipsis })
+        .width('100%')
+      Text(this.upcomingCourse.courseCode)
+        .fontSize(12)
+        .fontWeight(FontWeight.Bold)
+        .fontColor(this.theme().themeColor)
+        .maxLines(1)
+        .textOverflow({ overflow: TextOverflow.Ellipsis })
+      .width('100%')
+      .margin({ top: 6 })
+      Text(this.upcomingTimeAndLocation())
+        .fontSize(12)
+        .fontWeight(FontWeight.Bold)
+        .fontColor(this.theme().textPrimary)
+        .maxLines(1)
+        .textOverflow({ overflow: TextOverflow.Ellipsis })
+        .width('100%')
+        .margin({ top: 6 })
+    }
+    .width('100%')
+    .onAreaChange((_oldValue: Area, newValue: Area) => {
+      this.updateUpcomingPanelContentHeight(newValue.height);
+    })
+  }
+
+  @Builder
+  ExpandedUpcomingCourseContent(): void {
+    Column() {
+      Text(this.localized('下節課', 'Next class'))
+        .fontSize(14)
+        .fontWeight(FontWeight.Bold)
+        .fontColor(this.theme().textSecondary)
+        .maxLines(1)
+        .textOverflow({ overflow: TextOverflow.Ellipsis })
+        .width('100%')
+      Text(this.upcomingCourseCodeAndName())
+        .fontSize(14)
+        .fontWeight(FontWeight.Bold)
+        .fontColor(this.theme().themeColor)
+        .maxLines(1)
+        .textOverflow({ overflow: TextOverflow.Ellipsis })
+        .width('100%')
+        .margin({ top: 6 })
+      Text(this.upcomingTimeLine())
+        .fontSize(13)
+        .fontWeight(FontWeight.Bold)
+        .fontColor(this.theme().textPrimary)
+        .maxLines(1)
+        .textOverflow({ overflow: TextOverflow.Ellipsis })
+        .width('100%')
+        .margin({ top: 6 })
+      Text(this.upcomingLocationLine())
+        .fontSize(13)
+        .fontWeight(FontWeight.Bold)
+        .fontColor(this.theme().textPrimary)
+        .maxLines(1)
+        .textOverflow({ overflow: TextOverflow.Ellipsis })
+        .width('100%')
+        .margin({ top: 6 })
     }
     .width('100%')
     .onAreaChange((_oldValue: Area, newValue: Area) => {
@@ -1021,12 +1215,12 @@ export struct HomePage {
   QuickActionsPanel(targetHeight: number): void {
     if (targetHeight > 0) {
       AppCard({
+        cardHeight: targetHeight,
         contentJustifyContent: FlexAlign.Center,
         content: (): void => {
           this.QuickActionsContent();
         }
       })
-      .height(targetHeight)
     } else {
       AppCard({
         contentJustifyContent: FlexAlign.Center,
@@ -1076,11 +1270,11 @@ export struct HomePage {
   UpdatePanel(targetHeight: number): void {
     if (targetHeight > 0) {
       AppCard({
+        cardHeight: targetHeight,
         content: (): void => {
           this.UpdateCardContent();
         }
       })
-      .height(targetHeight)
     } else {
       AppCard({
         content: (): void => {
@@ -1160,19 +1354,35 @@ export struct HomePage {
       .margin({ top: 3, bottom: 12 })
     } else if (this.isFoldLayout()) {
       Column({ space: HOME_LAYOUT_GAP }) {
-        Row({ space: HOME_LAYOUT_GAP }) {
-          Column() {
-            this.UpcomingCoursePanel(this.foldTopCardsRowHeight())
-          }
-          .width(HOME_UPCOMING_PANEL_WIDTH)
+        if (this.homeCardsUseMeasuredHeight) {
+          Row({ space: HOME_LAYOUT_GAP }) {
+            Column() {
+              this.UpcomingCoursePanel(this.foldTopCardsRowHeight())
+            }
+            .width(HOME_UPCOMING_PANEL_WIDTH)
 
-          Column() {
-            this.QuickActionsPanel(this.foldTopCardsRowHeight())
+            Column() {
+              this.QuickActionsPanel(this.foldTopCardsRowHeight())
+            }
+            .layoutWeight(1)
           }
-          .layoutWeight(1)
+          .width('100%')
+          .alignItems(VerticalAlign.Top)
+        } else {
+          Row({ space: HOME_LAYOUT_GAP }) {
+            Column() {
+              this.UpcomingCoursePanel(0)
+            }
+            .width(HOME_UPCOMING_PANEL_WIDTH)
+
+            Column() {
+              this.QuickActionsPanel(0)
+            }
+            .layoutWeight(1)
+          }
+          .width('100%')
+          .alignItems(VerticalAlign.Top)
         }
-        .width('100%')
-        .alignItems(VerticalAlign.Top)
 
         this.UpdatePanel(0)
       }
@@ -1180,26 +1390,49 @@ export struct HomePage {
       .padding({ left: 16, right: 16 })
       .margin({ top: 3, bottom: 12 })
     } else {
-      Row({ space: HOME_LAYOUT_GAP }) {
-        Column() {
-          this.UpcomingCoursePanel(this.expandedCardsRowHeight())
-        }
-        .width(HOME_UPCOMING_PANEL_WIDTH)
+      if (this.homeCardsUseMeasuredHeight) {
+        Row({ space: HOME_LAYOUT_GAP }) {
+          Column() {
+            this.UpcomingCoursePanel(this.expandedCardsRowHeight())
+          }
+          .width(HOME_UPCOMING_PANEL_WIDTH)
 
-        Column() {
-          this.QuickActionsPanel(this.expandedCardsRowHeight())
-        }
-        .layoutWeight(1)
+          Column() {
+            this.QuickActionsPanel(this.expandedCardsRowHeight())
+          }
+          .layoutWeight(1)
 
-        Column() {
-          this.UpdatePanel(this.expandedCardsRowHeight())
+          Column() {
+            this.UpdatePanel(this.expandedCardsRowHeight())
+          }
+          .width(this.updatePanelWidth())
         }
-        .width(this.updatePanelWidth())
+        .width('100%')
+        .alignItems(VerticalAlign.Top)
+        .padding({ left: 16, right: 16 })
+        .margin({ top: 3, bottom: 12 })
+      } else {
+        Row({ space: HOME_LAYOUT_GAP }) {
+          Column() {
+            this.UpcomingCoursePanel(0)
+          }
+          .width(HOME_UPCOMING_PANEL_WIDTH)
+
+          Column() {
+            this.QuickActionsPanel(0)
+          }
+          .layoutWeight(1)
+
+          Column() {
+            this.UpdatePanel(0)
+          }
+          .width(this.updatePanelWidth())
+        }
+        .width('100%')
+        .alignItems(VerticalAlign.Top)
+        .padding({ left: 16, right: 16 })
+        .margin({ top: 3, bottom: 12 })
       }
-      .width('100%')
-      .alignItems(VerticalAlign.Top)
-      .padding({ left: 16, right: 16 })
-      .margin({ top: 3, bottom: 12 })
     }
   }
 
@@ -1232,7 +1465,7 @@ export struct HomePage {
       if ((event.cover_image_url ?? '').length > 0) {
         AppNetworkImage({
           src: event.cover_image_url ?? '',
-          alt: event.title ?? '',
+          alt: event.title ? this.dataText(event.title, event.title) : '',
           imageHeight: HOME_EVENT_IMAGE_HEIGHT,
           radius: 8
         })
@@ -1240,7 +1473,7 @@ export struct HomePage {
       }
 
       Column() {
-        Text(event.title ?? this.localized('未命名活動', 'Untitled event'))
+        Text(event.title ? this.dataText(event.title, event.title) : this.localized('未命名活動', 'Untitled event'))
           .fontSize(13)
           .fontWeight(FontWeight.Bold)
           .fontColor(ClubService.eventIsPast(event) ? this.theme().textTertiary : this.theme().textPrimary)
@@ -1251,7 +1484,7 @@ export struct HomePage {
 
         Row() {
           this.HomeFeedEventBadge(event)
-          Text(event.club_name ?? '')
+          Text(event.club_name ? this.dataText(event.club_name, event.club_name) : '')
             .fontSize(11)
             .fontColor(this.theme().textTertiary)
             .maxLines(1)

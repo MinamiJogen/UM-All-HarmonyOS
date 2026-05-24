@@ -36,6 +36,19 @@
     ],
     "extensionAbilities": [
       {
+        "name": "NextClassFormAbility",
+        "srcEntry": "./ets/nextclassformability/NextClassFormAbility.ets",
+        "label": "$string:NextClassFormAbility_label",
+        "description": "$string:NextClassFormAbility_desc",
+        "type": "form",
+        "metadata": [
+          {
+            "name": "ohos.extension.form",
+            "resource": "$profile:form_config"
+          }
+        ]
+      },
+      {
         "name": "EntryBackupAbility",
         "srcEntry": "./ets/entrybackupability/EntryBackupAbility.ets",
         "type": "backup",

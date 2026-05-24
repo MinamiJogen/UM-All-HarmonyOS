@@ -8,7 +8,7 @@ import { ROOT_CONTENT_TOP_PADDING } from '../../../common/constants/LayoutMetric
 import { ClubNavigationState } from '../../../common/navigation/ClubNavigationState';
 import { WebNavigationState } from '../../../common/navigation/WebNavigationState';
 import { ServiceResult } from '../../../common/net/HttpClient';
-import { I18nService, LANGUAGE_EN } from '../../../common/i18n/I18nService';
+import { I18nService } from '../../../common/i18n/I18nService';
 import {
   AppThemeColors,
   ARKUI_COLOR_MODE_LIGHT,
@@ -75,12 +75,12 @@ export struct ClubEventDetailPage {
     return ThemeStore.resolveTheme(this.appThemeMode, this.systemColorMode);
   }
 
-  private isEnglish(): boolean {
-    return I18nService.normalizeLanguage(this.language) === LANGUAGE_EN;
+  private localized(tcText: string, enText: string, ptText: string = '', jaText: string = ''): string {
+    return I18nService.localizeText(this.language, tcText, enText, ptText, jaText);
   }
 
-  private localized(tcText: string, enText: string): string {
-    return this.isEnglish() ? enText : tcText;
+  private dataText(tcText: string, enText: string = ''): string {
+    return I18nService.localizeDataText(this.language, tcText, enText);
   }
 
   private getContext(): common.UIAbilityContext {
@@ -117,11 +117,13 @@ export struct ClubEventDetailPage {
   }
 
   private title(): string {
-    return this.eventItem.title ?? this.localized('活動詳情', 'Event Detail');
+    return this.eventItem.title ? this.dataText(this.eventItem.title, this.eventItem.title) :
+    this.localized('活動詳情', 'Event Detail');
   }
 
   private introText(): string {
-    return this.eventItem.introduction ?? this.eventItem.content ?? '';
+    const text: string = this.eventItem.introduction ?? this.eventItem.content ?? '';
+    return this.dataText(text, text);
   }
 
   private introLinks(): HtmlLink[] {
@@ -225,7 +227,8 @@ export struct ClubEventDetailPage {
         .width('100%')
         .copyOption(CopyOptions.InApp)
         .margin({ bottom: 8 })
-      this.InfoRow(this.localized('地點', 'Venue'), this.eventItem.location ?? '')
+      this.InfoRow(this.localized('地點', 'Venue'), this.dataText(this.eventItem.location ?? '',
+        this.eventItem.location ?? ''))
       this.InfoRow(this.localized('時間', 'Time'), ClubService.formatEventRange(this.eventItem))
       this.InfoRow(this.localized('類型', 'Type'), this.eventItem.type ?? '')
       if ((this.eventItem.type ?? '') === 'WEBSITE' && (this.eventItem.link ?? '').length > 0) {
@@ -266,7 +269,7 @@ export struct ClubEventDetailPage {
     Row() {
       AppNetworkImage({
         src: this.club.logo_url ?? '',
-        alt: this.club.name,
+        alt: this.dataText(this.club.name, this.club.name),
         imageHeight: 46,
         fitContain: true,
         radius: 23
@@ -276,7 +279,7 @@ export struct ClubEventDetailPage {
         Text(this.localized('主辦方', 'Organizer'))
           .fontSize(12)
           .fontColor(this.theme().textTertiary)
-        Text(this.club.name)
+        Text(this.dataText(this.club.name, this.club.name))
           .fontSize(15)
           .fontWeight(FontWeight.Bold)
           .fontColor(this.theme().textPrimary)
@@ -325,7 +328,7 @@ export struct ClubEventDetailPage {
       if (this.introLinks().length > 0) {
         ForEach(this.introLinks(), (link: HtmlLink, index: number) => {
           AppListItem({
-            title: link.label,
+            title: this.dataText(link.label, link.label),
             subtitle: link.url,
             clickable: true,
             showChevron: true,

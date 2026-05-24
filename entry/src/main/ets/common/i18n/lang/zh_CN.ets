@@ -1,163 +1,163 @@
-export function enUsText(key: string): string {
+export function zhCnText(key: string): string {
   switch (key) {
     case 'common.INFO':
-      return 'Info';
+      return '资讯';
     case 'common.CATALOG':
-      return 'Catalog';
+      return '找课';
     case 'common.NEW_TOPIC':
-      return 'New';
+      return '新想法';
     case 'common.TIMETABLE':
-      return 'Table';
+      return '课表';
     case 'common.SERVICE':
-      return 'Service';
+      return '服务';
     case 'common.TOPTAB_MAIN':
-      return 'Home';
+      return '首页';
     case 'common.TOPTAB_CLUB':
-      return 'Club';
+      return '组织';
     case 'common.TOPTAB_EVENT':
-      return 'Event';
+      return '活动';
     case 'common.TOPTAB_NEWS':
-      return 'News';
+      return '新闻';
     case 'common.SETTINGS':
-      return 'Settings';
+      return '设置';
     case 'common.BACK':
-      return 'Back';
+      return '返回';
     case 'common.CLOSE':
-      return 'Close';
+      return '关闭';
     case 'common.ADD_COURSE':
-      return 'Add';
+      return '找课/加课';
     case 'common.RETRY':
-      return 'Retry';
+      return '重试';
     case 'common.REFRESH':
-      return 'Refresh';
+      return '刷新';
     case 'common.UPDATE':
-      return 'Update';
+      return '更新';
     case 'common.TERMS':
-      return 'Terms';
+      return '协议';
     case 'common.MORE':
-      return 'More';
+      return '更多';
     case 'bootstrap.LOADING':
-      return 'ARK ALL is initializing';
+      return 'ARK ALL 正在初始化';
     case 'bootstrap.READY':
-      return 'Startup completed';
+      return '启动初始化完成';
     case 'bootstrap.COURSE_READY':
-      return 'Course data is ready';
+      return '课程数据已准备';
     case 'bootstrap.COURSE_UPDATED':
-      return 'Course data updated';
+      return '课程数据已更新';
     case 'bootstrap.COURSE_SKIPPED':
-      return 'Course check is still in the 6-hour interval';
+      return '课程数据仍在 6 小时检查间隔内';
     case 'bootstrap.APP_INFO_READY':
-      return 'App info synced';
+      return 'App 信息已同步';
     case 'bootstrap.WARNING':
-      return 'Some startup tasks failed. The app can continue.';
+      return '部分启动任务失败，可继续使用';
     case 'setting.APPEARANCE':
-      return 'Appearance';
+      return '外观';
     case 'setting.THEME':
-      return 'Theme';
+      return '主题';
     case 'setting.LANGUAGE':
-      return 'Language';
+      return '语言';
     case 'setting.SYSTEM':
-      return 'System';
+      return '跟随系统';
     case 'setting.LIGHT':
-      return 'Light';
+      return '浅色';
     case 'setting.DARK':
-      return 'Dark';
+      return '深色';
     case 'setting.SIMPLIFIED_CHINESE':
-      return 'Simplified Chinese';
+      return '简体中文';
     case 'setting.TRADITIONAL_CHINESE':
-      return 'Traditional Chinese';
+      return '正体中文';
     case 'setting.CHINESE':
-      return 'Traditional Chinese';
+      return '正体中文';
     case 'setting.CHINESE_SHORT':
-      return 'Traditional';
+      return '正中';
     case 'setting.ENGLISH':
-      return 'English';
+      return '英语';
     case 'setting.ENGLISH_SHORT':
-      return 'English';
+      return '英语';
     case 'setting.PORTUGUESE':
-      return 'Portuguese';
+      return '葡语';
     case 'setting.JAPANESE':
-      return 'Japanese';
+      return '日语';
     case 'setting.APPLICATION':
-      return 'Application';
+      return '应用';
     case 'setting.STARTUP_STATUS':
-      return 'Startup status';
+      return '启动状态';
     case 'setting.CHECK_AGAIN':
-      return 'Run startup again';
+      return '重新执行启动初始化';
     case 'setting.COURSE_CACHE':
-      return 'Course cache';
+      return '课程缓存';
     case 'setting.APP_VERSION':
-      return 'App version';
+      return '应用版本';
     case 'setting.UPDATE_AVAILABLE':
-      return 'Update available';
+      return '发现新版本';
     case 'setting.UP_TO_DATE':
-      return 'Version is OK';
+      return '当前版本正常';
     case 'setting.TIMETABLE_ROWS':
-      return 'timetable rows';
+      return '条课表记录';
     case 'setting.CLEAR_CACHE':
-      return 'Clear cache';
+      return '清除缓存';
     case 'setting.CLEAR_CACHE_MESSAGE':
-      return 'Local business cache will be cleared and startup initialization will run again.';
+      return '将清除本地业务缓存，并重新执行启动初始化。';
     case 'setting.CLEARING_CACHE':
-      return 'Clearing cache';
+      return '正在清除缓存';
     case 'setting.CACHE_CLEARED':
-      return 'Cache cleared';
+      return '缓存已清除';
     case 'setting.CLEAR_CACHE_FAILED':
-      return 'Clear cache failed';
+      return '清除缓存失败';
     case 'setting.CONFIRM':
-      return 'Confirm';
+      return '确定';
     case 'setting.CANCEL':
-      return 'Cancel';
+      return '取消';
     case 'setting.RESET':
-      return 'Reset';
+      return '重置';
     case 'setting.CHECK_UPDATE':
-      return 'Check update';
+      return '检查更新';
     case 'setting.CHECKING_UPDATE':
-      return 'Checking update';
+      return '正在检查更新';
     case 'setting.CHECK_UPDATE_ERROR':
-      return 'Unable to check update';
+      return '暂时无法检查更新';
     case 'setting.LATEST_VERSION':
-      return 'Already on the latest version';
+      return '已是最新版本';
     case 'setting.UPDATE_MESSAGE':
-      return 'A new version is available.';
+      return '发现新版本。';
     case 'setting.CAN_UPDATE':
-      return 'is available';
+      return '可以更新';
     case 'setting.UPDATE_NOW':
-      return 'Update';
+      return '前往更新';
     case 'setting.WHAT2REG_HOST':
-      return 'What2Reg Host';
+      return '选课网站';
     case 'setting.AUTO':
-      return 'Auto';
+      return '自动';
     case 'setting.CURRENT_HOST':
-      return 'Current host';
+      return '当前站点';
     case 'setting.OPEN_CURRENT_HOST':
-      return 'Open current host';
+      return '打开当前站点';
     case 'setting.HOST_UPDATE_FAILED':
-      return 'Host preference update failed';
+      return '站点偏好更新失败';
     case 'setting.OPEN_LINK_FAILED':
-      return 'Unable to open link';
+      return '无法打开链接';
     case 'setting.ABOUT':
-      return 'About';
+      return '关于';
     case 'setting.VERSION':
-      return 'Version';
+      return '版本';
     case 'setting.OPEN_SOURCE':
-      return 'Open Source';
+      return '开源项目';
     case 'setting.COMMON_ISSUES':
-      return 'Common Issues';
+      return '常见问题';
     case 'setting.PRIVACY_POLICY':
-      return 'Privacy Policy';
+      return '隐私政策';
     case 'setting.DONATE':
-      return 'Donate';
+      return '捐赠';
     case 'setting.FEEDBACK':
-      return 'Feedback';
+      return '反馈';
     case 'setting.ACTIVITY':
-      return 'Activity';
+      return '动态';
     case 'setting.ABOUT_ARK':
-      return 'About ARK ALL';
+      return '关于 ARK ALL';
     case 'setting.CONTACT':
-      return 'Contact';
+      return '联系';
     case 'setting.OFFICIAL_WEBSITE':
-      return 'Official Website';
+      return '官网';
     case 'setting.EMAIL':
       return 'Email';
     default:

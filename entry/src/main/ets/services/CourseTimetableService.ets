@@ -28,6 +28,7 @@ import {
   WeekTimetableHomeCache
 } from '../models/Course';
 import { CourseDataService } from './CourseDataService';
+import { NextClassCardService } from './NextClassCardService';
 
 export const TIMETABLE_PERIOD_DAY: string = 'day';
 export const TIMETABLE_PERIOD_AFTERNOON: string = 'afternoon';
@@ -274,7 +275,12 @@ function buildHomeCache(weekTimetable: WeekTimetable): WeekTimetableHomeCache {
       cacheItems.push({
         courseCode: meetings[j].courseCode,
         section: meetings[j].section,
+        courseTitle: meetings[j].courseTitle,
+        courseTitleChi: meetings[j].courseTitleChi,
+        day: day,
         timeFrom: meetings[j].timeFrom ?? '',
+        timeTo: meetings[j].timeTo ?? '',
+        classroom: meetings[j].classroom ?? '',
         color: meetings[j].color
       });
     }
@@ -572,6 +578,7 @@ export class CourseTimetableService {
   private static async saveBuildResult(context: common.Context, result: TimetableBuildResult): Promise<void> {
     await JsonStore.setObject<TimetableSelection[]>(context, STORAGE_TIMETABLE, result.selections);
     await JsonStore.setObject<WeekTimetableHomeCache>(context, STORAGE_WEEK_TIMETABLE, result.homeCache);
+    await NextClassCardService.updateAllForms(context);
   }
 
   private static async saveSelectionsWithCoursePlanTime(context: common.Context, selections: TimetableSelection[],

@@ -7,7 +7,7 @@ import { ROOT_CONTENT_TOP_PADDING } from '../../../common/constants/LayoutMetric
 import { ClubNavigationState } from '../../../common/navigation/ClubNavigationState';
 import { WebNavigationState } from '../../../common/navigation/WebNavigationState';
 import { ServiceResult } from '../../../common/net/HttpClient';
-import { I18nService, LANGUAGE_EN } from '../../../common/i18n/I18nService';
+import { I18nService } from '../../../common/i18n/I18nService';
 import {
   AppThemeColors,
   ARKUI_COLOR_MODE_LIGHT,
@@ -63,12 +63,12 @@ export struct AllClubEventsPage {
     return ThemeStore.resolveTheme(this.appThemeMode, this.systemColorMode);
   }
 
-  private isEnglish(): boolean {
-    return I18nService.normalizeLanguage(this.language) === LANGUAGE_EN;
+  private localized(tcText: string, enText: string, ptText: string = '', jaText: string = ''): string {
+    return I18nService.localizeText(this.language, tcText, enText, ptText, jaText);
   }
 
-  private localized(tcText: string, enText: string): string {
-    return this.isEnglish() ? enText : tcText;
+  private dataText(tcText: string, enText: string = ''): string {
+    return I18nService.localizeDataText(this.language, tcText, enText);
   }
 
   private getContext(): common.UIAbilityContext {
@@ -128,7 +128,7 @@ export struct AllClubEventsPage {
     if ((event.type ?? '') === 'WEBSITE' && (event.link ?? '').length > 0) {
       WebNavigationState.setLink({
         url: event.link ?? '',
-        title: event.title ?? this.localized('網頁', 'Web')
+        title: event.title ? this.dataText(event.title, event.title) : this.localized('網頁', 'Web')
       });
       this.pathStack.pushPathByName(ROUTE_WEBVIEWER, null);
       return;
@@ -171,12 +171,12 @@ export struct AllClubEventsPage {
     Column() {
       AppNetworkImage({
         src: event.cover_image_url ?? '',
-        alt: event.title ?? '',
+        alt: event.title ? this.dataText(event.title, event.title) : '',
         imageHeight: 142,
         radius: 8
       })
       Column() {
-        Text(event.title ?? this.localized('未命名活動', 'Untitled event'))
+        Text(event.title ? this.dataText(event.title, event.title) : this.localized('未命名活動', 'Untitled event'))
           .fontSize(13)
           .fontWeight(FontWeight.Bold)
           .fontColor(ClubService.eventIsPast(event) ? this.theme().textTertiary : this.theme().textPrimary)
@@ -286,7 +286,8 @@ export struct AllClubEventsPage {
 
   build() {
     AppHdsPage({
-      title: this.clubName.length > 0 ? this.clubName : this.localized('全部活動', 'All Events'),
+      title: this.clubName.length > 0 ? this.dataText(this.clubName, this.clubName) :
+      this.localized('全部活動', 'All Events'),
       backLabel: this.localized('返回', 'Back'),
       primaryActionLabel: this.localized('刷新', 'Refresh'),
       primaryActionSymbol: $r('sys.symbol.arrow_clockwise'),

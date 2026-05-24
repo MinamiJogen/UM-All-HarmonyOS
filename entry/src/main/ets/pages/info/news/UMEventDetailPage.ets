@@ -6,7 +6,7 @@ import {
   ARKUI_COLOR_MODE_LIGHT,
   ThemeStore
 } from '../../../common/theme/AppTheme';
-import { I18nService, LANGUAGE_EN } from '../../../common/i18n/I18nService';
+import { I18nService, LANGUAGE_PT } from '../../../common/i18n/I18nService';
 import { OpenLink } from '../../../common/utils/OpenLink';
 import { AppCard } from '../../../components/AppCard';
 import { AppEmptyState } from '../../../components/AppEmptyState';
@@ -30,6 +30,7 @@ import {
 } from '../../../models/Event';
 import {
   OPEN_DATA_LOCALE_EN_US,
+  OPEN_DATA_LOCALE_PT_PT,
   OPEN_DATA_LOCALE_ZH_TW
 } from '../../../models/News';
 
@@ -60,9 +61,7 @@ export struct UMEventDetailPage {
     if (selected) {
       this.eventItem = selected;
       this.hasEvent = true;
-      const preferred: string = this.preferredLocale();
-      const detail: UmEventDetail | undefined = InfoFeedService.findDetail<UmEventDetail>(selected.details, preferred);
-      this.selectedLocale = detail ? preferred : (selected.details.length > 0 ? selected.details[0].locale : preferred);
+      this.selectedLocale = this.initialSelectedLocale(selected);
       this.refreshSimplifiedContent();
     }
     const params: AnalyticsParams = new AnalyticsParams();
@@ -74,16 +73,43 @@ export struct UMEventDetailPage {
     return ThemeStore.resolveTheme(this.appThemeMode, this.systemColorMode);
   }
 
-  private isEnglish(): boolean {
-    return I18nService.normalizeLanguage(this.language) === LANGUAGE_EN;
+  private isPortuguese(): boolean {
+    return I18nService.normalizeLanguage(this.language) === LANGUAGE_PT;
   }
 
-  private localized(tcText: string, enText: string): string {
-    return this.isEnglish() ? enText : tcText;
+  private localized(tcText: string, enText: string, ptText: string = '', jaText: string = ''): string {
+    return I18nService.localizeText(this.language, tcText, enText, ptText, jaText);
   }
 
   private preferredLocale(): string {
-    return this.isEnglish() ? OPEN_DATA_LOCALE_EN_US : OPEN_DATA_LOCALE_ZH_TW;
+    if (this.isPortuguese()) {
+      return OPEN_DATA_LOCALE_PT_PT;
+    }
+    return I18nService.isEnglishLike(this.language) ? OPEN_DATA_LOCALE_EN_US : OPEN_DATA_LOCALE_ZH_TW;
+  }
+
+  private openDataText(text: string, locale: string): string {
+    return locale === OPEN_DATA_LOCALE_ZH_TW ? I18nService.localizeDataText(this.language, text, text) : text;
+  }
+
+  private currentLocaleText(text: string): string {
+    return this.openDataText(text, this.selectedLocale);
+  }
+
+  private initialSelectedLocale(item: UmEventItem): string {
+    const preferred: string = this.preferredLocale();
+    if (InfoFeedService.findDetail<UmEventDetail>(item.details, preferred)) {
+      return preferred;
+    }
+    if (preferred !== OPEN_DATA_LOCALE_EN_US &&
+      InfoFeedService.findDetail<UmEventDetail>(item.details, OPEN_DATA_LOCALE_EN_US)) {
+      return OPEN_DATA_LOCALE_EN_US;
+    }
+    if (preferred !== OPEN_DATA_LOCALE_ZH_TW &&
+      InfoFeedService.findDetail<UmEventDetail>(item.details, OPEN_DATA_LOCALE_ZH_TW)) {
+      return OPEN_DATA_LOCALE_ZH_TW;
+    }
+    return item.details.length > 0 ? item.details[0].locale : preferred;
   }
 
   private getContext(): common.UIAbilityContext {
@@ -163,48 +189,59 @@ export struct UMEventDetailPage {
 
   private title(): string {
     const title: string = this.cleanText(this.currentDetail()?.title);
-    return title.length > 0 ? title : this.localized('澳大活動詳情', 'UM Event Detail');
+    return title.length > 0 ? this.currentLocaleText(title) :
+    this.localized('澳大活動詳情', 'UM Event Detail', 'Detalhes do evento da UM');
   }
 
   private speaker(): string {
     const detail: UmEventDetail | undefined = this.currentDetail();
-    return this.cleanText(detail?.speakers ?? detail?.speaker);
+    return this.currentLocaleText(this.cleanText(detail?.speakers ?? detail?.speaker));
   }
 
   private venue(): string {
     const detail: UmEventDetail | undefined = this.currentDetail();
-    return this.cleanText(detail?.venues ?? detail?.venue);
+    return this.currentLocaleText(this.cleanText(detail?.venues ?? detail?.venue));
   }
 
   private targetAudience(): string {
     const detail: UmEventDetail | undefined = this.currentDetail();
-    return this.cleanText(detail?.targetAudiences ?? detail?.targetAudience);
+    return this.currentLocaleText(this.cleanText(detail?.targetAudiences ?? detail?.targetAudience));
   }
 
   private organiser(): string {
     const detail: UmEventDetail | undefined = this.currentDetail();
-    return this.cleanText(detail?.organizedBys ?? detail?.organiser);
+    return this.currentLocaleText(this.cleanText(detail?.organizedBys ?? detail?.organiser));
   }
 
   private coorganiser(): string {
     const detail: UmEventDetail | undefined = this.currentDetail();
-    return this.cleanText(detail?.coorganizers ?? detail?.coorganiser);
+    return this.currentLocaleText(this.cleanText(detail?.coorganizers ?? detail?.coorganiser));
   }
 
   private remark(): string {
-    return this.cleanText(this.currentDetail()?.remark);
+    return this.currentLocaleText(this.cleanText(this.currentDetail()?.remark));
   }
 
   private contentText(): string {
-    return this.detailContentText;
+    return this.currentLocaleText(this.detailContentText);
   }
 
   private contentLinks(): HtmlLink[] {
-    return this.detailContentLinks;
+    if (this.selectedLocale !== OPEN_DATA_LOCALE_ZH_TW) {
+      return this.detailContentLinks;
+    }
+    const result: HtmlLink[] = [];
+    for (let i = 0; i < this.detailContentLinks.length; i++) {
+      result.push({
+        label: this.currentLocaleText(this.detailContentLinks[i].label),
+        url: this.detailContentLinks[i].url
+      });
+    }
+    return result;
   }
 
   private contactName(): string {
-    return this.cleanText(this.currentDetail()?.contactName);
+    return this.currentLocaleText(this.cleanText(this.currentDetail()?.contactName));
   }
 
   private contactPhone(): string {
@@ -225,7 +262,7 @@ export struct UMEventDetailPage {
       return '';
     }
     if (typeof value === 'string') {
-      return this.cleanText(value);
+      return this.currentLocaleText(this.cleanText(value));
     }
     if (!Array.isArray(value)) {
       return '';
@@ -234,7 +271,7 @@ export struct UMEventDetailPage {
     for (let index = 0; index < value.length; index++) {
       const text: string = this.cleanText(value[index]);
       if (text.length > 0) {
-        result.push(text);
+        result.push(this.currentLocaleText(text));
       }
     }
     return result.join(', ');
@@ -248,7 +285,8 @@ export struct UMEventDetailPage {
   private async openExternal(url: string): Promise<void> {
     const success: boolean = await OpenLink.open(this.getContext(), url);
     if (!success) {
-      AppToast.showError(this.getUIContext(), this.localized('無法打開鏈接', 'Unable to open link'));
+      AppToast.showError(this.getUIContext(),
+        this.localized('無法打開鏈接', 'Unable to open link', 'Não foi possível abrir a ligação'));
     }
   }
 
@@ -275,7 +313,7 @@ export struct UMEventDetailPage {
     if ((this.eventItem.common.posterUrl ?? '').length > 0) {
       AppNetworkImage({
         src: InfoFeedService.normalizeImageUrl(this.eventItem.common.posterUrl),
-        alt: this.localized('活動海報', 'Event poster'),
+        alt: this.localized('活動海報', 'Event poster', 'Cartaz do evento'),
         imageHeight: 270,
         radius: 0
       })
@@ -318,14 +356,14 @@ export struct UMEventDetailPage {
   @Builder
   EventInfoCardContent(): void {
     Column() {
-      this.InfoRow(this.localized('日期', 'Date'), InfoFeedService.formatEventTimeRange(this.eventItem))
-      this.InfoRow(this.localized('地點', 'Venue'), this.venue())
-      this.InfoRow(this.localized('講者', 'Speaker'), this.speaker())
-      this.InfoRow(this.localized('語言', 'Language'), this.languageText())
-      this.InfoRow(this.localized('對象', 'Audience'), this.targetAudience())
-      this.InfoRow(this.localized('主辦', 'Organiser'), this.organiser())
-      this.InfoRow(this.localized('協辦', 'Co-organiser'), this.coorganiser())
-      this.InfoRow(this.localized('備註', 'Remark'), this.remark())
+      this.InfoRow(this.localized('日期', 'Date', 'Data'), InfoFeedService.formatEventTimeRange(this.eventItem))
+      this.InfoRow(this.localized('地點', 'Venue', 'Local'), this.venue())
+      this.InfoRow(this.localized('講者', 'Speaker', 'Orador'), this.speaker())
+      this.InfoRow(this.localized('語言', 'Language', 'Idioma'), this.languageText())
+      this.InfoRow(this.localized('對象', 'Audience', 'Público'), this.targetAudience())
+      this.InfoRow(this.localized('主辦', 'Organiser', 'Organizador'), this.organiser())
+      this.InfoRow(this.localized('協辦', 'Co-organiser', 'Coorganizador'), this.coorganiser())
+      this.InfoRow(this.localized('備註', 'Remark', 'Observação'), this.remark())
     }
     .width('100%')
   }
@@ -343,14 +381,14 @@ export struct UMEventDetailPage {
   @Builder
   ContentCardContent(): void {
     Column() {
-      Text(this.localized('詳情', 'Details'))
+      Text(this.localized('詳情', 'Details', 'Detalhes'))
         .fontSize(14)
         .fontWeight(FontWeight.Bold)
         .fontColor(this.theme().themeColor)
         .width('100%')
         .margin({ bottom: 8 })
       Text(this.contentText().length > 0 ? this.contentText() :
-      this.localized('暫無活動正文', 'No event content available'))
+      this.localized('暫無活動正文', 'No event content available', 'Sem conteúdo do evento disponível'))
         .fontSize(15)
         .fontColor(this.theme().textSecondary)
         .lineHeight(23)
@@ -377,21 +415,21 @@ export struct UMEventDetailPage {
   ContactCardContent(): void {
     Column() {
       AppListItem({
-        title: this.localized('聯絡人', 'Contact'),
+        title: this.localized('聯絡人', 'Contact', 'Contacto'),
         value: this.contactName(),
         showDivider: this.contactPhone().length > 0 || this.contactFax().length > 0 ||
         this.contactEmail().length > 0
       })
       if (this.contactPhone().length > 0) {
         AppListItem({
-          title: this.localized('電話', 'Phone'),
+          title: this.localized('電話', 'Phone', 'Telefone'),
           value: this.contactPhone(),
           showDivider: this.contactFax().length > 0 || this.contactEmail().length > 0
         })
       }
       if (this.contactFax().length > 0) {
         AppListItem({
-          title: this.localized('傳真', 'Fax'),
+          title: this.localized('傳真', 'Fax', 'Fax'),
           value: this.contactFax(),
           showDivider: this.contactEmail().length > 0
         })
@@ -415,7 +453,7 @@ export struct UMEventDetailPage {
   @Builder
   LinkList(): void {
     if (this.contentLinks().length > 0) {
-      Text(this.localized('鏈接', 'Links'))
+      Text(this.localized('鏈接', 'Links', 'Ligações'))
         .fontSize(13)
         .fontWeight(FontWeight.Bold)
         .fontColor(this.theme().textTertiary)
@@ -486,9 +524,10 @@ export struct UMEventDetailPage {
     if (!this.hasEvent) {
       Column() {
         AppEmptyState({
-          title: this.localized('沒有活動資料', 'No event data'),
-          description: this.localized('請從活動列表重新打開。', 'Open an event from the list again.'),
-          actionText: this.localized('返回', 'Back'),
+          title: this.localized('沒有活動資料', 'No event data', 'Sem dados do evento'),
+          description: this.localized('請從活動列表重新打開。', 'Open an event from the list again.',
+            'Abra novamente a partir da lista de eventos.'),
+          actionText: this.localized('返回', 'Back', 'Voltar'),
           onAction: (): void => {
             this.pathStack.pop();
           }
@@ -503,8 +542,8 @@ export struct UMEventDetailPage {
 
   build() {
     AppHdsPage({
-      title: this.localized('活動詳情', 'Event Detail'),
-      backLabel: this.localized('返回', 'Back'),
+      title: this.localized('活動詳情', 'Event Detail', 'Detalhes do evento'),
+      backLabel: this.localized('返回', 'Back', 'Voltar'),
       onBack: (): void => {
         this.pathStack.pop();
       },

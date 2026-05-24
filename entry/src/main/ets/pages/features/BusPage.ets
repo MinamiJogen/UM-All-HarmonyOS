@@ -1,7 +1,7 @@
 import { common } from '@kit.AbilityKit';
 import { UM_MAP } from '../../common/constants/ApiEndpoints';
 import { ROOT_CONTENT_TOP_PADDING } from '../../common/constants/LayoutMetrics';
-import { I18nService, LANGUAGE_EN } from '../../common/i18n/I18nService';
+import { I18nService } from '../../common/i18n/I18nService';
 import { ServiceResult } from '../../common/net/HttpClient';
 import {
   AppThemeColors,
@@ -65,12 +65,12 @@ export struct BusPage {
     return ThemeStore.resolveTheme(this.appThemeMode, this.systemColorMode);
   }
 
-  private isEnglish(): boolean {
-    return I18nService.normalizeLanguage(this.language) === LANGUAGE_EN;
+  private localized(tcText: string, enText: string, ptText: string = '', jaText: string = ''): string {
+    return I18nService.localizeText(this.language, tcText, enText, ptText, jaText);
   }
 
-  private localized(tcText: string, enText: string): string {
-    return this.isEnglish() ? enText : tcText;
+  private dataText(tcText: string, enText: string = ''): string {
+    return I18nService.localizeDataText(this.language, tcText, enText);
   }
 
   private lengthToNumber(value: Length): number {
@@ -142,7 +142,7 @@ export struct BusPage {
     if (this.loopState.lastUpdatedAt === 0) {
       this.loading = true;
     }
-    const result: ServiceResult<BusLoopState> = await BusService.fetchLoop(this.isEnglish());
+    const result: ServiceResult<BusLoopState> = await BusService.fetchLoop(I18nService.isEnglishLike(this.language));
     if (result.ok && result.data) {
       this.loopState = result.data;
       this.errorMessage = '';
@@ -177,7 +177,7 @@ export struct BusPage {
   }
 
   private stopTitle(stop: BusStopInfo): string {
-    return stop.code + ' ' + (this.isEnglish() ? stop.nameEn : stop.nameTc);
+    return stop.code + ' ' + this.dataText(stop.nameTc, stop.nameEn);
   }
 
   private stopHasBus(stop: BusStopInfo): boolean {
@@ -279,7 +279,7 @@ export struct BusPage {
       }
       .width('100%')
 
-      Text(this.localized('自動刷新：7 秒；最後刷新：', 'Auto refresh: 7 seconds. Last refresh: ') +
+      Text(this.localized('最後刷新：', 'Last refresh: ') +
       this.formatUpdateTime(this.loopState.lastUpdatedAt))
         .fontSize(12)
         .fontColor(this.theme().textTertiary)
@@ -289,7 +289,7 @@ export struct BusPage {
       if (this.loopState.infoLines.length > 0) {
         Column() {
           ForEach(this.loopState.infoLines, (line: string, index: number) => {
-            Text(line)
+            Text(this.dataText(line, line))
               .fontSize(13)
               .fontColor(this.theme().textSecondary)
               .width('100%')
@@ -320,8 +320,6 @@ export struct BusPage {
           .width(BUS_ROUTE_MAP_WIDTH)
           .height(BUS_ROUTE_MAP_HEIGHT)
           .objectFit(ImageFit.Contain)
-
-        this.MapCountdown()
 
         ForEach(this.loopState.positions, (position: BusPositionInfo, index: number) => {
           this.MapBusIcon(position)
@@ -355,7 +353,7 @@ export struct BusPage {
     Column() {
       if (this.loopState.infoLines.length > 0) {
         ForEach(this.loopState.infoLines, (line: string, index: number) => {
-          Text(line)
+          Text(this.dataText(line, line))
             .fontSize(10)
             .fontColor(this.theme().textTertiary)
             .maxLines(1)
@@ -398,21 +396,6 @@ export struct BusPage {
   }
 
   @Builder
-  MapCountdown(): void {
-    Text(this.refreshing ? '...' : '7')
-      .width(36)
-      .height(36)
-      .borderRadius(18)
-      .fontSize(13)
-      .fontWeight(FontWeight.Bold)
-      .fontColor(this.theme().textTertiary)
-      .textAlign(TextAlign.Center)
-      .backgroundColor(this.theme().surfaceColor)
-      .border({ width: 3, color: this.theme().themeColor })
-      .position({ x: 130, y: 5 })
-  }
-
-  @Builder
   MapBusIcon(position: BusPositionInfo): void {
     Image($r('app.media.bus_icon'))
       .width(30)
@@ -426,7 +409,7 @@ export struct BusPage {
 
   @Builder
   MapStopLabel(stop: BusStopInfo): void {
-    Text(stop.code + ' ' + (this.isEnglish() ? stop.nameEn : stop.nameTc))
+    Text(stop.code + ' ' + this.dataText(stop.nameTc, stop.nameEn))
       .fontSize(11)
       .fontWeight(FontWeight.Bold)
       .fontColor(this.stopHasBus(stop) ? this.theme().secondThemeColor : this.theme().themeColor)
@@ -466,7 +449,7 @@ export struct BusPage {
           .fontWeight(FontWeight.Bold)
           .fontColor(this.theme().textPrimary)
           .width('100%')
-        Text(position.stopName)
+        Text(this.dataText(position.stopName, position.stopName))
           .fontSize(13)
           .fontColor(this.theme().textTertiary)
           .width('100%')
@@ -519,7 +502,7 @@ export struct BusPage {
         .fontSize(16)
         .fontWeight(FontWeight.Bold)
         .fontColor(this.stopHasBus(stop) ? Color.White : this.theme().themeColor)
-      Text(this.isEnglish() ? stop.nameEn : stop.nameTc)
+      Text(this.dataText(stop.nameTc, stop.nameEn))
         .fontSize(11)
         .fontColor(this.stopHasBus(stop) ? Color.White : this.theme().textSecondary)
         .textAlign(TextAlign.Center)

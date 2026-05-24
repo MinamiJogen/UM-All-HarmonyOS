@@ -4,7 +4,7 @@ import {
   ROOT_CONTENT_BOTTOM_PADDING,
   ROOT_CONTENT_TOP_PADDING
 } from '../../common/constants/LayoutMetrics';
-import { I18nService, LANGUAGE_EN } from '../../common/i18n/I18nService';
+import { I18nService } from '../../common/i18n/I18nService';
 import {
   CourseSimNavigationState
 } from '../../common/navigation/CourseSimNavigationState';
@@ -200,12 +200,12 @@ export struct CourseSimPage {
     return ThemeStore.resolveTheme(this.appThemeMode, this.systemColorMode);
   }
 
-  private isEnglish(): boolean {
-    return I18nService.normalizeLanguage(this.language) === LANGUAGE_EN;
+  private localized(tcText: string, enText: string, ptText: string = '', jaText: string = ''): string {
+    return I18nService.localizeText(this.language, tcText, enText, ptText, jaText);
   }
 
-  private localized(tcText: string, enText: string): string {
-    return this.isEnglish() ? enText : tcText;
+  private dataText(tcText: string, enText: string = ''): string {
+    return I18nService.localizeDataText(this.language, tcText, enText);
   }
 
   private getContext(): common.UIAbilityContext {
@@ -261,21 +261,7 @@ export struct CourseSimPage {
     return this.isWideExpandedTimetableLayout() ? 12 : 6;
   }
 
-  private activeTimetableDays(): string[] {
-    const result: string[] = [];
-    for (let i = 0; i < WEEK_DAY_CODES.length; i++) {
-      const day: string = WEEK_DAY_CODES[i];
-      if (this.dayMeetingCount(day) > 0) {
-        result.push(day);
-      }
-    }
-    return result;
-  }
-
   private visibleTimetableDays(): string[] {
-    if (this.isPhoneTimetableLayout()) {
-      return this.activeTimetableDays();
-    }
     return WEEK_DAY_CODES;
   }
 
@@ -291,7 +277,7 @@ export struct CourseSimPage {
     Math.min(Math.max(dayCount, 1), TIMETABLE_PHONE_MAX_VISIBLE_DAYS) : Math.max(dayCount, 1);
     const horizontalPadding: number = this.timetableHorizontalPadding() * 2;
     const totalGap: number = Math.max(0, visibleSlots - 1) * this.timetableDayGap();
-    const computedWidth: number = Math.floor((viewportWidth - horizontalPadding - totalGap) / visibleSlots);
+    const computedWidth: number = (viewportWidth - horizontalPadding - totalGap) / visibleSlots;
     return Math.max(TIMETABLE_MIN_DAY_COLUMN_WIDTH, computedWidth);
   }
 
@@ -583,7 +569,7 @@ export struct CourseSimPage {
     this.selectedCourseCode = meeting.courseCode;
     this.selectedSection = meeting.section;
     this.selectedCourseTitle = meeting.courseTitle;
-    this.selectedCourseTitleChi = safeText(meeting.courseTitleChi);
+    this.selectedCourseTitleChi = this.dataText(safeText(meeting.courseTitleChi), safeText(meeting.courseTitleChi));
     this.selectedTeacher = safeText(meeting.teacherInformation);
     this.selectedClassroom = safeText(meeting.classroom);
     this.selectedDay = safeText(meeting.day);
@@ -1028,8 +1014,7 @@ export struct CourseSimPage {
     } else {
       Row({ space: this.timetableDayGap() }) {
         ForEach(this.visibleTimetableDays(), (day: string) => {
-          this.DayColumn(day, this.timetableDayColumnWidth(this.visibleTimetableDays().length),
-            !this.isPhoneTimetableLayout())
+          this.DayColumn(day, this.timetableDayColumnWidth(this.visibleTimetableDays().length), true)
         }, (day: string) => day)
       }
       .width('100%')
@@ -1207,7 +1192,7 @@ export struct CourseSimPage {
         .width('100%')
         .margin({ top: 4 })
       if (safeText(course.courseTitleChi).length > 0) {
-        Text(safeText(course.courseTitleChi))
+        Text(this.dataText(safeText(course.courseTitleChi), safeText(course.courseTitleChi)))
           .fontSize(12)
           .fontColor(this.theme().textSecondary)
           .maxLines(1)
@@ -1264,7 +1249,7 @@ export struct CourseSimPage {
         .width('100%')
         .margin({ top: 6 })
       if (safeText(course.courseTitleChi).length > 0) {
-        Text(safeText(course.courseTitleChi))
+        Text(this.dataText(safeText(course.courseTitleChi), safeText(course.courseTitleChi)))
           .fontSize(13)
           .fontColor(this.theme().textSecondary)
           .lineHeight(19)

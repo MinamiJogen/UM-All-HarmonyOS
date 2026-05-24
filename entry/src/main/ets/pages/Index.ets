@@ -8,7 +8,13 @@ import {
   ThemeStore
 } from '../common/theme/AppTheme';
 import { RootTabs } from '../pages/root/RootTabs';
-import { ROOT_TAB_INFO } from '../common/constants/TabIndexes';
+import {
+  ROOT_TAB_INFO,
+  ROOT_TAB_TIMETABLE
+} from '../common/constants/TabIndexes';
+import {
+  LAUNCH_TARGET_TIMETABLE
+} from '../common/constants/LaunchTargets';
 import {
   ROUTE_ALL_EVENTS,
   ROUTE_BUS,
@@ -47,10 +53,14 @@ struct Index {
   @Provide('appStartupState') appStartupState: AppStartupState = createInitialStartupState();
   @Provide('appCurrentTabIndex') currentTabIndex: number = ROOT_TAB_INFO;
   @StorageProp('colorMode') systemColorMode: number = ARKUI_COLOR_MODE_LIGHT;
+  @StorageLink('appLaunchTarget') launchTarget: string = '';
+  @StorageLink('appLaunchSequence') @Watch('onLaunchSequenceChanged') launchSequence: number = 0;
   private bootstrapStarted: boolean = false;
   private backgroundBootstrapStarted: boolean = false;
+  private handledLaunchSequence: number = -1;
 
   aboutToAppear(): void {
+    this.consumeLaunchTarget();
     if (this.bootstrapStarted) {
       return;
     }
@@ -60,6 +70,10 @@ struct Index {
       this.appStartupState = preparedState;
     }
     this.initializeApp();
+  }
+
+  onPageShow(): void {
+    this.consumeLaunchTarget();
   }
 
   private async initializeApp(): Promise<void> {
@@ -98,6 +112,24 @@ struct Index {
       return true;
     }
     return false;
+  }
+
+  private onLaunchSequenceChanged(): void {
+    this.consumeLaunchTarget();
+  }
+
+  private consumeLaunchTarget(): void {
+    if (this.launchSequence === this.handledLaunchSequence) {
+      return;
+    }
+    this.handledLaunchSequence = this.launchSequence;
+    if (this.launchTarget !== LAUNCH_TARGET_TIMETABLE) {
+      return;
+    }
+
+    this.pathStack.clear(false);
+    this.currentTabIndex = ROOT_TAB_TIMETABLE;
+    this.launchTarget = '';
   }
 
   onBackPress(): boolean {

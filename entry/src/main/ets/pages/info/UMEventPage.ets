@@ -5,7 +5,7 @@ import {
   InfoRefreshRegistry
 } from '../../common/navigation/InfoRefreshRegistry';
 import { ServiceResult } from '../../common/net/HttpClient';
-import { I18nService, LANGUAGE_EN } from '../../common/i18n/I18nService';
+import { I18nService, LANGUAGE_PT } from '../../common/i18n/I18nService';
 import {
   AppThemeColors,
   ARKUI_COLOR_MODE_LIGHT,
@@ -26,6 +26,7 @@ import {
 } from '../../models/Event';
 import {
   OPEN_DATA_LOCALE_EN_US,
+  OPEN_DATA_LOCALE_PT_PT,
   OPEN_DATA_LOCALE_ZH_TW
 } from '../../models/News';
 
@@ -74,16 +75,44 @@ export struct UMEventPage {
     return ThemeStore.resolveTheme(this.appThemeMode, this.systemColorMode);
   }
 
-  private isEnglish(): boolean {
-    return I18nService.normalizeLanguage(this.language) === LANGUAGE_EN;
+  private isPortuguese(): boolean {
+    return I18nService.normalizeLanguage(this.language) === LANGUAGE_PT;
   }
 
-  private localized(tcText: string, enText: string): string {
-    return this.isEnglish() ? enText : tcText;
+  private localized(tcText: string, enText: string, ptText: string = '', jaText: string = ''): string {
+    return I18nService.localizeText(this.language, tcText, enText, ptText, jaText);
   }
 
   private preferredLocale(): string {
-    return this.isEnglish() ? OPEN_DATA_LOCALE_EN_US : OPEN_DATA_LOCALE_ZH_TW;
+    if (this.isPortuguese()) {
+      return OPEN_DATA_LOCALE_PT_PT;
+    }
+    return I18nService.isEnglishLike(this.language) ? OPEN_DATA_LOCALE_EN_US : OPEN_DATA_LOCALE_ZH_TW;
+  }
+
+  private openDataText(text: string, locale: string): string {
+    return locale === OPEN_DATA_LOCALE_ZH_TW ? I18nService.localizeDataText(this.language, text, text) : text;
+  }
+
+  private preferredDetail(item: UmEventItem): UmEventDetail | undefined {
+    const preferredLocale: string = this.preferredLocale();
+    let detail: UmEventDetail | undefined = InfoFeedService.findDetail<UmEventDetail>(item.details, preferredLocale);
+    if (detail) {
+      return detail;
+    }
+    if (preferredLocale !== OPEN_DATA_LOCALE_EN_US) {
+      detail = InfoFeedService.findDetail<UmEventDetail>(item.details, OPEN_DATA_LOCALE_EN_US);
+      if (detail) {
+        return detail;
+      }
+    }
+    if (preferredLocale !== OPEN_DATA_LOCALE_ZH_TW) {
+      detail = InfoFeedService.findDetail<UmEventDetail>(item.details, OPEN_DATA_LOCALE_ZH_TW);
+      if (detail) {
+        return detail;
+      }
+    }
+    return item.details.length > 0 ? item.details[0] : undefined;
   }
 
   private compactStringLines(value: string): string {
@@ -122,16 +151,16 @@ export struct UMEventPage {
   }
 
   private titleFor(item: UmEventItem): string {
-    const detail: UmEventDetail | undefined =
-      InfoFeedService.findDetail<UmEventDetail>(item.details, this.preferredLocale());
+    const detail: UmEventDetail | undefined = this.preferredDetail(item);
     const title: string = this.compactLines(detail?.title ?? '');
-    return title.length > 0 ? title : this.localized('無標題活動', 'Untitled event');
+    return title.length > 0 ? this.openDataText(title, detail?.locale ?? this.preferredLocale()) :
+    this.localized('無標題活動', 'Untitled event', 'Evento sem título');
   }
 
   private venueFor(item: UmEventItem): string {
-    const detail: UmEventDetail | undefined =
-      InfoFeedService.findDetail<UmEventDetail>(item.details, this.preferredLocale());
-    return this.compactLines(detail?.venues ?? detail?.venue ?? '');
+    const detail: UmEventDetail | undefined = this.preferredDetail(item);
+    const venue: string = this.compactLines(detail?.venues ?? detail?.venue ?? '');
+    return this.openDataText(venue, detail?.locale ?? this.preferredLocale());
   }
 
   private dateLabelFor(item: UmEventItem): string {
@@ -155,10 +184,12 @@ export struct UMEventPage {
     if (result.ok && result.data) {
       this.events = result.data;
       if (showToast) {
-        AppToast.show(this.getUIContext(), this.localized('活動已刷新', 'Events refreshed'), AppToastType.Success);
+        AppToast.show(this.getUIContext(), this.localized('活動已刷新', 'Events refreshed', 'Eventos atualizados'),
+          AppToastType.Success);
       }
     } else {
-      this.errorMessage = result.error?.message ?? this.localized('澳大活動讀取失敗', 'Failed to load UM events');
+      this.errorMessage = result.error?.message ??
+      this.localized('澳大活動讀取失敗', 'Failed to load UM events', 'Falha ao carregar eventos da UM');
       if (showToast) {
         AppToast.showError(this.getUIContext(), this.errorMessage);
       }
@@ -306,7 +337,8 @@ export struct UMEventPage {
 
   @Builder
   EventBadge(item: UmEventItem): void {
-    Text(this.eventIsPast(item) ? this.localized('已過', 'Past') : this.localized('即將', 'Upcoming'))
+    Text(this.eventIsPast(item) ? this.localized('已過', 'Past', 'Passado') :
+    this.localized('即將', 'Upcoming', 'Em breve'))
       .fontSize(11)
       .fontWeight(FontWeight.Bold)
       .fontColor(this.eventIsPast(item) ? this.theme().textTertiary : this.theme().secondThemeColor)
@@ -321,7 +353,7 @@ export struct UMEventPage {
       if (this.hasPoster(item)) {
         AppNetworkImage({
           src: InfoFeedService.normalizeImageUrl(item.common.posterUrl),
-          alt: this.localized('活動海報', 'Event poster'),
+          alt: this.localized('活動海報', 'Event poster', 'Cartaz do evento'),
           imageHeight: EVENT_CARD_POSTER_HEIGHT,
           radius: 8
         })
@@ -416,7 +448,7 @@ export struct UMEventPage {
           if (this.loading) {
             Column() {
               AppLoading({
-                title: this.localized('正在讀取活動', 'Loading events'),
+                title: this.localized('正在讀取活動', 'Loading events', 'A carregar eventos'),
                 message: 'data.um.edu.mo'
               })
             }
@@ -426,9 +458,9 @@ export struct UMEventPage {
           } else if (this.errorMessage.length > 0) {
             Column() {
               AppEmptyState({
-                title: this.localized('活動暫不可用', 'Events unavailable'),
+                title: this.localized('活動暫不可用', 'Events unavailable', 'Eventos indisponíveis'),
                 description: this.errorMessage,
-                actionText: this.localized('重試', 'Retry'),
+                actionText: this.localized('重試', 'Retry', 'Tentar novamente'),
                 onAction: (): void => {
                   this.refresh(false);
                 }

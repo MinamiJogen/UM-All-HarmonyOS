@@ -1,155 +1,163 @@
 export function zhHkText(key: string): string {
   switch (key) {
     case 'common.INFO':
-      return '资讯';
+      return '資訊';
     case 'common.CATALOG':
-      return '揾课';
+      return '搵課';
     case 'common.NEW_TOPIC':
       return '新想法';
     case 'common.TIMETABLE':
-      return '课表';
+      return '課表';
     case 'common.SERVICE':
-      return '服务';
+      return '服務';
     case 'common.TOPTAB_MAIN':
-      return '首页';
+      return '首頁';
     case 'common.TOPTAB_CLUB':
-      return '组织';
+      return '組織';
     case 'common.TOPTAB_EVENT':
-      return '活动';
+      return '活動';
     case 'common.TOPTAB_NEWS':
-      return '新闻';
+      return '新聞';
     case 'common.SETTINGS':
-      return '设置';
+      return '設定';
     case 'common.BACK':
       return '返回';
     case 'common.CLOSE':
-      return '关闭';
+      return '關閉';
     case 'common.ADD_COURSE':
-      return '搵课/加课';
+      return '搵課/加課';
     case 'common.RETRY':
-      return '重试';
+      return '重試';
     case 'common.REFRESH':
       return '刷新';
     case 'common.UPDATE':
       return '更新';
     case 'common.TERMS':
-      return '协议';
+      return '協議';
     case 'common.MORE':
       return '更多';
     case 'bootstrap.LOADING':
       return 'ARK ALL 正在初始化';
     case 'bootstrap.READY':
-      return '启动初始化完成';
+      return '啟動初始化完成';
     case 'bootstrap.COURSE_READY':
-      return '课程数据已准备';
+      return '課程資料已準備';
     case 'bootstrap.COURSE_UPDATED':
-      return '课程数据已更新';
+      return '課程資料已更新';
     case 'bootstrap.COURSE_SKIPPED':
-      return '课程数据仍在 6 小时检查间隔内';
+      return '課程資料仍在 6 小時檢查間隔內';
     case 'bootstrap.APP_INFO_READY':
-      return 'App 信息已同步';
+      return 'App 資訊已同步';
     case 'bootstrap.WARNING':
-      return '部分启动任务失败，可继续使用';
+      return '部分啟動任務失敗，可繼續使用';
     case 'setting.APPEARANCE':
-      return '外观';
+      return '外觀';
     case 'setting.THEME':
-      return '主题';
+      return '主題';
     case 'setting.LANGUAGE':
-      return '语言';
+      return '語言';
     case 'setting.SYSTEM':
-      return '跟随系统';
+      return '跟隨系統';
     case 'setting.LIGHT':
-      return '浅色';
+      return '淺色';
     case 'setting.DARK':
       return '深色';
+    case 'setting.SIMPLIFIED_CHINESE':
+      return '簡體中文';
+    case 'setting.TRADITIONAL_CHINESE':
+      return '正體中文';
     case 'setting.CHINESE':
-      return '繁体中文';
+      return '正體中文';
     case 'setting.CHINESE_SHORT':
-      return '繁中';
+      return '正中';
     case 'setting.ENGLISH':
-      return 'English';
+      return '英語';
     case 'setting.ENGLISH_SHORT':
-      return 'EN';
+      return '英語';
+    case 'setting.PORTUGUESE':
+      return '葡語';
+    case 'setting.JAPANESE':
+      return '日語';
     case 'setting.APPLICATION':
-      return '应用';
+      return '應用';
     case 'setting.STARTUP_STATUS':
-      return '启动状态';
+      return '啟動狀態';
     case 'setting.CHECK_AGAIN':
-      return '重新执行启动初始化';
+      return '重新執行啟動初始化';
     case 'setting.COURSE_CACHE':
-      return '课程缓存';
+      return '課程快取';
     case 'setting.APP_VERSION':
-      return '应用版本';
+      return '應用版本';
     case 'setting.UPDATE_AVAILABLE':
-      return '发现新版本';
+      return '發現新版本';
     case 'setting.UP_TO_DATE':
-      return '当前版本正常';
+      return '目前版本正常';
     case 'setting.TIMETABLE_ROWS':
-      return '条课表记录';
+      return '條課表記錄';
     case 'setting.CLEAR_CACHE':
-      return '清除缓存';
+      return '清除快取';
     case 'setting.CLEAR_CACHE_MESSAGE':
-      return '将清除本地业务缓存，并重新执行启动初始化。';
+      return '將清除本地業務快取，並重新執行啟動初始化。';
     case 'setting.CLEARING_CACHE':
-      return '正在清除缓存';
+      return '正在清除快取';
     case 'setting.CACHE_CLEARED':
-      return '缓存已清除';
+      return '快取已清除';
     case 'setting.CLEAR_CACHE_FAILED':
-      return '清除缓存失败';
+      return '清除快取失敗';
     case 'setting.CONFIRM':
-      return '确定';
+      return '確定';
     case 'setting.CANCEL':
       return '取消';
     case 'setting.RESET':
       return '重置';
     case 'setting.CHECK_UPDATE':
-      return '检查更新';
+      return '檢查更新';
     case 'setting.CHECKING_UPDATE':
-      return '正在检查更新';
+      return '正在檢查更新';
     case 'setting.CHECK_UPDATE_ERROR':
-      return '暂时无法检查更新';
+      return '暫時無法檢查更新';
     case 'setting.LATEST_VERSION':
       return '已是最新版本';
     case 'setting.UPDATE_MESSAGE':
-      return '发现新版本。';
+      return '發現新版本。';
     case 'setting.CAN_UPDATE':
       return '可以更新';
     case 'setting.UPDATE_NOW':
       return '前往更新';
     case 'setting.WHAT2REG_HOST':
-      return '选咩课网站';
+      return '選咩課網站';
     case 'setting.AUTO':
-      return '自动';
+      return '自動';
     case 'setting.CURRENT_HOST':
-      return '当前站点';
+      return '目前站點';
     case 'setting.OPEN_CURRENT_HOST':
-      return '打开当前站点';
+      return '開啟目前站點';
     case 'setting.HOST_UPDATE_FAILED':
-      return '站点偏好更新失败';
+      return '站點偏好更新失敗';
     case 'setting.OPEN_LINK_FAILED':
-      return '无法打开链接';
+      return '無法開啟連結';
     case 'setting.ABOUT':
-      return '关于';
+      return '關於';
     case 'setting.VERSION':
       return '版本';
     case 'setting.OPEN_SOURCE':
-      return '开源项目';
+      return '開源項目';
     case 'setting.COMMON_ISSUES':
-      return '常见问题';
+      return '常見問題';
     case 'setting.PRIVACY_POLICY':
-      return '隐私政策';
+      return '私隱政策';
     case 'setting.DONATE':
-      return '捐赠';
+      return '捐贈';
     case 'setting.FEEDBACK':
-      return '反馈';
+      return '反饋';
     case 'setting.ACTIVITY':
-      return '动态';
+      return '動態';
     case 'setting.ABOUT_ARK':
-      return '关于 ARK ALL';
+      return '關於 ARK ALL';
     case 'setting.CONTACT':
-      return '联系';
+      return '聯絡';
     case 'setting.OFFICIAL_WEBSITE':
-      return '官网';
+      return '官網';
     case 'setting.EMAIL':
       return 'Email';
     default:

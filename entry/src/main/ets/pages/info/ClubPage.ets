@@ -8,7 +8,7 @@ import {
   InfoRefreshRegistry
 } from '../../common/navigation/InfoRefreshRegistry';
 import { ServiceResult } from '../../common/net/HttpClient';
-import { I18nService, LANGUAGE_EN } from '../../common/i18n/I18nService';
+import { I18nService } from '../../common/i18n/I18nService';
 import {
   AppThemeColors,
   ARKUI_COLOR_MODE_LIGHT,
@@ -78,12 +78,12 @@ export struct ClubPage {
     return ThemeStore.resolveTheme(this.appThemeMode, this.systemColorMode);
   }
 
-  private isEnglish(): boolean {
-    return I18nService.normalizeLanguage(this.language) === LANGUAGE_EN;
+  private localized(tcText: string, enText: string, ptText: string = '', jaText: string = ''): string {
+    return I18nService.localizeText(this.language, tcText, enText, ptText, jaText);
   }
 
-  private localized(tcText: string, enText: string): string {
-    return this.isEnglish() ? enText : tcText;
+  private dataText(tcText: string, enText: string = ''): string {
+    return I18nService.localizeDataText(this.language, tcText, enText);
   }
 
   private getContext(): common.UIAbilityContext {
@@ -241,7 +241,7 @@ export struct ClubPage {
         .borderRadius(2)
         .backgroundColor(this.theme().themeColor)
         .margin({ right: 10 })
-      Text(ClubService.tagLabel(section.title))
+      Text(this.dataText(ClubService.tagLabel(section.title), ClubService.tagLabel(section.title)))
         .fontSize(16)
         .fontWeight(FontWeight.Bold)
         .fontColor(this.theme().textSecondary)

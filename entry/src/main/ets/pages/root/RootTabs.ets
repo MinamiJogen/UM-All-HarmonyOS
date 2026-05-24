@@ -80,11 +80,16 @@ export struct RootTabs {
     return I18nService.t(this.language, key, fallback);
   }
 
+  private localized(tcText: string, enText: string, ptText: string = '', jaText: string = ''): string {
+    return I18nService.localizeText(this.language, tcText, enText, ptText, jaText);
+  }
+
   private openHarborNewTopic(): void {
     const context: common.UIAbilityContext = this.getUIContext().getHostContext() as common.UIAbilityContext;
     OpenLink.open(context, ARK_HARBOR_NEW_TOPIC).then((success: boolean) => {
       if (!success) {
-        AppToast.showError(this.getUIContext(), '无法打开新想法入口');
+        AppToast.showError(this.getUIContext(),
+          this.localized('無法打開新想法入口', 'Unable to open the new-topic entry'));
       }
     });
   }
@@ -342,7 +347,9 @@ export struct RootTabs {
           TabContent() {
             PlaceholderPage({
               title: this.text('common.NEW_TOPIC', '新想法'),
-              description: '这是 Harbor 发帖动作入口，点击底部入口会打开外部 Harbor 发帖页并保留当前页面。',
+              description: this.localized(
+                '這是 Harbor 發帖動作入口，點擊底部入口會打開外部 Harbor 發帖頁並保留目前頁面。',
+                'Harbor new-topic entry. Tapping this bottom tab opens the external Harbor post page and keeps the current page.'),
               topPadding: ROOT_CONTENT_TOP_PADDING,
               bottomPadding: ROOT_CONTENT_BOTTOM_PADDING
             })

@@ -10,7 +10,7 @@ import {
 } from '../../models/Parking';
 import { ROOT_CONTENT_TOP_PADDING } from '../../common/constants/LayoutMetrics';
 import { ServiceResult } from '../../common/net/HttpClient';
-import { I18nService, LANGUAGE_EN } from '../../common/i18n/I18nService';
+import { I18nService } from '../../common/i18n/I18nService';
 import {
   AppThemeColors,
   ARKUI_COLOR_MODE_LIGHT,
@@ -64,12 +64,67 @@ export struct CarParkPage {
     return ThemeStore.resolveTheme(this.appThemeMode, this.systemColorMode);
   }
 
-  private isEnglish(): boolean {
-    return I18nService.normalizeLanguage(this.language) === LANGUAGE_EN;
+  private localized(tcText: string, enText: string, ptText: string = '', jaText: string = ''): string {
+    return I18nService.localizeText(this.language, tcText, enText, ptText, jaText);
   }
 
-  private localized(tcText: string, enText: string): string {
-    return this.isEnglish() ? enText : tcText;
+  private dataText(tcText: string, enText: string = ''): string {
+    return I18nService.localizeDataText(this.language, tcText, enText);
+  }
+
+  private parkingTargetText(value: string): string {
+    if (value === CAR_PARK_FILTER_ALL) {
+      return this.localized('全部', 'All', 'Todos', 'すべて');
+    }
+    if (value === CAR_PARK_TARGET_STAFF) {
+      return this.localized('職員', 'Staff', 'Funcionários', '職員');
+    }
+    if (value === CAR_PARK_TARGET_MONTHLY_PASS) {
+      return this.localized('月票', 'Monthly Pass', 'Passe mensal', '月極');
+    }
+    if (value === CAR_PARK_TARGET_VISITOR) {
+      return this.localized('訪客', 'Visitor', 'Visitante', '来訪者');
+    }
+    return this.dataText(value, value);
+  }
+
+  private vehicleTypeText(value: string): string {
+    if (value === CAR_PARK_FILTER_ALL) {
+      return this.localized('全部', 'All', 'Todos', 'すべて');
+    }
+    if (value === CAR_PARK_VEHICLE_LIGHT) {
+      return this.localized('輕型車', 'Light Vehicle', 'Veículo ligeiro', '普通車');
+    }
+    if (value === CAR_PARK_VEHICLE_MOTORCYCLE) {
+      return this.localized('電單車', 'Motorcycle', 'Motociclo', 'バイク');
+    }
+    return this.dataText(value, value);
+  }
+
+  private targetOptions(): AppSegmentOption[] {
+    const result: AppSegmentOption[] = [];
+    for (let i = 0; i < CAR_PARK_TARGET_OPTIONS.length; i++) {
+      result.push({
+        key: CAR_PARK_TARGET_OPTIONS[i].key,
+        label: this.parkingTargetText(CAR_PARK_TARGET_OPTIONS[i].key)
+      });
+    }
+    return result;
+  }
+
+  private vehicleOptions(): AppSegmentOption[] {
+    const result: AppSegmentOption[] = [];
+    for (let i = 0; i < CAR_PARK_VEHICLE_OPTIONS.length; i++) {
+      result.push({
+        key: CAR_PARK_VEHICLE_OPTIONS[i].key,
+        label: this.vehicleTypeText(CAR_PARK_VEHICLE_OPTIONS[i].key)
+      });
+    }
+    return result;
+  }
+
+  private placeDescription(code: string): string {
+    return this.dataText(CarParkService.getPlaceDescription(code, false), CarParkService.getPlaceDescription(code, true));
   }
 
   private targetIndex(): number {
@@ -141,7 +196,7 @@ export struct CarParkPage {
   FilterSection(): void {
     this.SectionTitle(this.localized('提供對象', 'Parking target'))
     AppSegmentedControl({
-      options: CAR_PARK_TARGET_OPTIONS,
+      options: this.targetOptions(),
       selectedIndex: this.targetIndex(),
       disabled: this.loading,
       wrap: true,
@@ -152,7 +207,7 @@ export struct CarParkPage {
 
     this.SectionTitle(this.localized('車輛類型', 'Vehicle type'))
     AppSegmentedControl({
-      options: CAR_PARK_VEHICLE_OPTIONS,
+      options: this.vehicleOptions(),
       selectedIndex: this.vehicleIndex(),
       disabled: this.loading,
       wrap: true,
@@ -166,7 +221,7 @@ export struct CarParkPage {
   RecordRow(record: CarParkRecord): void {
     Column() {
       Row() {
-        Text('For ' + record.parkingType)
+        Text(this.localized('對象：', 'For ', 'Para ', '対象: ') + this.parkingTargetText(record.parkingType))
           .fontSize(15)
           .fontWeight(FontWeight.Bold)
           .fontColor(this.theme().themeColor)
@@ -185,7 +240,7 @@ export struct CarParkPage {
       }
       .width('100%')
 
-      Text(record.vehicleType)
+      Text(this.vehicleTypeText(record.vehicleType))
         .fontSize(13)
         .fontColor(this.theme().secondThemeColor)
         .fontWeight(FontWeight.Medium)
@@ -213,7 +268,7 @@ export struct CarParkPage {
         .width('100%')
 
       Text(this.localized('地點：', 'Location: ') +
-      CarParkService.getPlaceDescription(item.carParkCode, this.isEnglish()))
+      this.placeDescription(item.carParkCode))
         .fontSize(15)
         .fontWeight(FontWeight.Medium)
         .fontColor(this.theme().textSecondary)
@@ -257,7 +312,7 @@ export struct CarParkPage {
         .textAlign(TextAlign.Center)
 
       if (this.carParks.length > 0) {
-        Text(this.localized('數據更新時間：', 'Last updated: ') +
+        Text(this.localized('數據更新時間：', 'Last updated: ', 'Última atualização: ', '最終更新: ') +
         CarParkService.formatRecordDate(this.carParks[0].recordDate))
           .fontSize(12)
           .fontColor(this.theme().textTertiary)

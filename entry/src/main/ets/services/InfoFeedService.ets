@@ -35,6 +35,7 @@ import {
   TimetableHomeCacheItem,
   WeekTimetableHomeCache
 } from '../models/Course';
+import { CourseTimetableService } from './CourseTimetableService';
 
 export interface NewsFeedState {
   topNews?: NewsItem;
@@ -243,7 +244,11 @@ function normalizeWeekCache(text: string): string {
   return text
     .replace(/"Course Code"\s*:/g, '"courseCode":')
     .replace(/"Section"\s*:/g, '"section":')
-    .replace(/"Time From"\s*:/g, '"timeFrom":');
+    .replace(/"Course Title"\s*:/g, '"courseTitle":')
+    .replace(/"Course Title Chi"\s*:/g, '"courseTitleChi":')
+    .replace(/"Time From"\s*:/g, '"timeFrom":')
+    .replace(/"Time To"\s*:/g, '"timeTo":')
+    .replace(/"Classroom"\s*:/g, '"classroom":');
 }
 
 function dayCache(cache: WeekTimetableHomeCache, day: string): TimetableHomeCacheItem[] {
@@ -276,6 +281,21 @@ function sortHomeItems(items: TimetableHomeCacheItem[]): TimetableHomeCacheItem[
   result.sort((left: TimetableHomeCacheItem, right: TimetableHomeCacheItem): number =>
   compareNumber(parseClockTimeToMinutes(left.timeFrom), parseClockTimeToMinutes(right.timeFrom)));
   return result;
+}
+
+function upcomingCourseFromCache(cache: WeekTimetableHomeCache): TimetableHomeCacheItem | null {
+  const todayItems: TimetableHomeCacheItem[] = sortHomeItems(dayCache(cache, getDateDayCode(new Date())));
+  const currentMinutes: number = getDateClockMinutes(new Date());
+  for (let i = 0; i < todayItems.length; i++) {
+    if (parseClockTimeToMinutes(todayItems[i].timeFrom) > currentMinutes) {
+      return todayItems[i];
+    }
+  }
+  return null;
+}
+
+function homeItemNeedsTimetableRefresh(item: TimetableHomeCacheItem): boolean {
+  return item.courseTitle === undefined || item.timeTo === undefined || item.classroom === undefined;
 }
 
 function chooseTopNews(source: NewsItem[]): NewsItem | undefined {
@@ -396,14 +416,14 @@ export class InfoFeedService {
       return null;
     }
 
-    const todayItems: TimetableHomeCacheItem[] = sortHomeItems(dayCache(cache, getDateDayCode(new Date())));
-    const currentMinutes: number = getDateClockMinutes(new Date());
-    for (let i = 0; i < todayItems.length; i++) {
-      if (parseClockTimeToMinutes(todayItems[i].timeFrom) > currentMinutes) {
-        return todayItems[i];
+    const upcomingCourse: TimetableHomeCacheItem | null = upcomingCourseFromCache(cache);
+    if (upcomingCourse !== null && homeItemNeedsTimetableRefresh(upcomingCourse)) {
+      const refreshResult = await CourseTimetableService.loadTimetable(context);
+      if (refreshResult.ok && refreshResult.data) {
+        return upcomingCourseFromCache(refreshResult.data.homeCache) ?? upcomingCourse;
       }
     }
-    return null;
+    return upcomingCourse;
   }
 
   static getLocaleOptions(details: Array<NewsDetail | UmEventDetail>): OpenDataLocaleOption[] {

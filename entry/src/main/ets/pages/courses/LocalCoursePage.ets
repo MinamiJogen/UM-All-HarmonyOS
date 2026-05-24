@@ -1,7 +1,7 @@
 import { common } from '@kit.AbilityKit';
 import { ROOT_CONTENT_TOP_PADDING } from '../../common/constants/LayoutMetrics';
 import { ROOT_TAB_TIMETABLE } from '../../common/constants/TabIndexes';
-import { I18nService, LANGUAGE_EN } from '../../common/i18n/I18nService';
+import { I18nService } from '../../common/i18n/I18nService';
 import { CourseSimNavigationState } from '../../common/navigation/CourseSimNavigationState';
 import { LocalCourseNavigationState } from '../../common/navigation/LocalCourseNavigationState';
 import { ServiceResult } from '../../common/net/HttpClient';
@@ -128,12 +128,12 @@ export struct LocalCoursePage {
     return ThemeStore.resolveTheme(this.appThemeMode, this.systemColorMode);
   }
 
-  private isEnglish(): boolean {
-    return I18nService.normalizeLanguage(this.language) === LANGUAGE_EN;
+  private localized(tcText: string, enText: string, ptText: string = '', jaText: string = ''): string {
+    return I18nService.localizeText(this.language, tcText, enText, ptText, jaText);
   }
 
-  private localized(tcText: string, enText: string): string {
-    return this.isEnglish() ? enText : tcText;
+  private dataText(tcText: string, enText: string = ''): string {
+    return I18nService.localizeDataText(this.language, tcText, enText);
   }
 
   private getContext(): common.UIAbilityContext {
@@ -386,7 +386,7 @@ export struct LocalCoursePage {
         .lineHeight(21)
 
       if (safeText(this.courseInfo.courseTitleChi).length > 0) {
-        Text(safeText(this.courseInfo.courseTitleChi))
+        Text(this.dataText(safeText(this.courseInfo.courseTitleChi), safeText(this.courseInfo.courseTitleChi)))
           .fontSize(14)
           .fontColor(this.theme().textSecondary)
           .textAlign(TextAlign.Center)
@@ -395,8 +395,9 @@ export struct LocalCoursePage {
           .margin({ top: 4 })
       }
 
-      Text(safeText(this.courseInfo.offeringUnit) +
-      (safeText(this.courseInfo.offeringDepartment).length > 0 ? ' - ' + safeText(this.courseInfo.offeringDepartment) : ''))
+      Text(this.dataText(safeText(this.courseInfo.offeringUnit), safeText(this.courseInfo.offeringUnit)) +
+      (safeText(this.courseInfo.offeringDepartment).length > 0 ? ' - ' +
+      this.dataText(safeText(this.courseInfo.offeringDepartment), safeText(this.courseInfo.offeringDepartment)) : ''))
         .fontSize(12)
         .fontColor(this.theme().textTertiary)
         .textAlign(TextAlign.Center)
@@ -538,7 +539,8 @@ export struct LocalCoursePage {
           .maxLines(2)
           .lineHeight(18)
           .margin({ top: 3 })
-        Text(safeText(this.firstSlot(slots).courseTitleChi))
+        Text(this.dataText(safeText(this.firstSlot(slots).courseTitleChi),
+          safeText(this.firstSlot(slots).courseTitleChi)))
           .fontSize(13)
           .fontColor(this.theme().textSecondary)
           .textAlign(TextAlign.Center)

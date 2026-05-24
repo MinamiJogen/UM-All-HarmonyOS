@@ -9,6 +9,7 @@ export const STORAGE_COURSE_PLAN_TIME: string = 'course_plan_time';
 export const STORAGE_COURSE_FILTER_OPTIONS: string = 'ARK_Courses_filterOptions';
 export const STORAGE_TIMETABLE: string = 'ARK_Timetable_Storage';
 export const STORAGE_WEEK_TIMETABLE: string = 'ARK_WeekTimetable_Storage';
+export const STORAGE_NEXT_CLASS_FORM_IDS: string = 'ARK_NextClass_FormIds';
 export const STORAGE_LAST_VERSION_CHECK_TIMESTAMP: string = 'last_version_check_timestamp';
 export const STORAGE_USER_INFO: string = 'userInfo';
 export const STORAGE_APP_INFO: string = 'appInfo';
@@ -26,6 +27,7 @@ export const BUSINESS_STORAGE_KEYS: string[] = [
   STORAGE_COURSE_FILTER_OPTIONS,
   STORAGE_TIMETABLE,
   STORAGE_WEEK_TIMETABLE,
+  STORAGE_NEXT_CLASS_FORM_IDS,
   STORAGE_LAST_VERSION_CHECK_TIMESTAMP,
   STORAGE_USER_INFO,
   STORAGE_APP_INFO,

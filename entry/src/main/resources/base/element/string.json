@@ -11,6 +11,22 @@
     {
       "name": "EntryAbility_label",
       "value": "ARK ALL"
+    },
+    {
+      "name": "NextClassFormAbility_label",
+      "value": "下节课"
+    },
+    {
+      "name": "NextClassFormAbility_desc",
+      "value": "显示下节课信息"
+    },
+    {
+      "name": "next_class_card_display_name",
+      "value": "下节课"
+    },
+    {
+      "name": "next_class_card_desc",
+      "value": "显示课程代码、时间和地点"
     }
   ]
 }

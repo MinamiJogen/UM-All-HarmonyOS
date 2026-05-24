@@ -61,7 +61,12 @@ export interface TimetableSelection {
 export interface TimetableHomeCacheItem {
   courseCode: string;
   section: string;
+  courseTitle?: string;
+  courseTitleChi?: string;
+  day?: string;
   timeFrom: string;
+  timeTo?: string;
+  classroom?: string;
   color: number;
 }
 

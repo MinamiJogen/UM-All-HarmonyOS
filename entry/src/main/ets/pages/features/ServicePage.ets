@@ -17,7 +17,7 @@ import {
   ServiceFeatureSection
 } from '../../common/constants/ServiceFeatureCatalog';
 import { ROOT_TAB_TIMETABLE } from '../../common/constants/TabIndexes';
-import { I18nService, LANGUAGE_EN } from '../../common/i18n/I18nService';
+import { I18nService } from '../../common/i18n/I18nService';
 import {
   AppThemeColors,
   ARKUI_COLOR_MODE_LIGHT,
@@ -50,12 +50,12 @@ export struct ServicePage {
     return ThemeStore.resolveTheme(this.appThemeMode, this.systemColorMode);
   }
 
-  private isEnglish(): boolean {
-    return I18nService.normalizeLanguage(this.language) === LANGUAGE_EN;
+  private localized(tcText: string, enText: string, ptText: string = '', jaText: string = ''): string {
+    return I18nService.localizeText(this.language, tcText, enText, ptText, jaText);
   }
 
-  private localized(tcText: string, enText: string): string {
-    return this.isEnglish() ? enText : tcText;
+  private usesCompactLabels(): boolean {
+    return I18nService.isEnglishLike(this.language);
   }
 
   private getContext(): common.UIAbilityContext {
@@ -296,7 +296,7 @@ export struct ServicePage {
       this.FeatureIcon(item)
 
       Text(this.itemTitle(item))
-        .fontSize(this.isEnglish() ? 10 : 11)
+        .fontSize(this.usesCompactLabels() ? 10 : 11)
         .fontWeight(FontWeight.Medium)
         .fontColor(this.theme().textSecondary)
         .textAlign(TextAlign.Center)

@@ -6,7 +6,7 @@ import {
   InfoRefreshRegistry
 } from '../../common/navigation/InfoRefreshRegistry';
 import { ServiceResult } from '../../common/net/HttpClient';
-import { I18nService, LANGUAGE_EN } from '../../common/i18n/I18nService';
+import { I18nService, LANGUAGE_PT } from '../../common/i18n/I18nService';
 import {
   AppThemeColors,
   ARKUI_COLOR_MODE_LIGHT,
@@ -28,6 +28,7 @@ import {
   NewsDetail,
   NewsItem,
   OPEN_DATA_LOCALE_EN_US,
+  OPEN_DATA_LOCALE_PT_PT,
   OPEN_DATA_LOCALE_ZH_TW
 } from '../../models/News';
 
@@ -88,27 +89,56 @@ export struct NewsPage {
     return ThemeStore.resolveTheme(this.appThemeMode, this.systemColorMode);
   }
 
-  private isEnglish(): boolean {
-    return I18nService.normalizeLanguage(this.language) === LANGUAGE_EN;
+  private isPortuguese(): boolean {
+    return I18nService.normalizeLanguage(this.language) === LANGUAGE_PT;
   }
 
-  private localized(tcText: string, enText: string): string {
-    return this.isEnglish() ? enText : tcText;
+  private localized(tcText: string, enText: string, ptText: string = '', jaText: string = ''): string {
+    return I18nService.localizeText(this.language, tcText, enText, ptText, jaText);
   }
 
   private preferredLocale(): string {
-    return this.isEnglish() ? OPEN_DATA_LOCALE_EN_US : OPEN_DATA_LOCALE_ZH_TW;
+    if (this.isPortuguese()) {
+      return OPEN_DATA_LOCALE_PT_PT;
+    }
+    return I18nService.isEnglishLike(this.language) ? OPEN_DATA_LOCALE_EN_US : OPEN_DATA_LOCALE_ZH_TW;
+  }
+
+  private openDataText(text: string, locale: string): string {
+    return locale === OPEN_DATA_LOCALE_ZH_TW ? I18nService.localizeDataText(this.language, text, text) : text;
+  }
+
+  private preferredDetail(item: NewsItem): NewsDetail | undefined {
+    const preferredLocale: string = this.preferredLocale();
+    let detail: NewsDetail | undefined = InfoFeedService.findDetail<NewsDetail>(item.details, preferredLocale);
+    if (detail) {
+      return detail;
+    }
+    if (preferredLocale !== OPEN_DATA_LOCALE_EN_US) {
+      detail = InfoFeedService.findDetail<NewsDetail>(item.details, OPEN_DATA_LOCALE_EN_US);
+      if (detail) {
+        return detail;
+      }
+    }
+    if (preferredLocale !== OPEN_DATA_LOCALE_ZH_TW) {
+      detail = InfoFeedService.findDetail<NewsDetail>(item.details, OPEN_DATA_LOCALE_ZH_TW);
+      if (detail) {
+        return detail;
+      }
+    }
+    return item.details.length > 0 ? item.details[0] : undefined;
   }
 
   private titleFor(item: NewsItem): string {
-    const detail: NewsDetail | undefined = InfoFeedService.findDetail<NewsDetail>(item.details, this.preferredLocale());
-    return detail?.title ?? this.localized('無標題', 'Untitled');
+    const detail: NewsDetail | undefined = this.preferredDetail(item);
+    return detail ? this.openDataText(detail.title, detail.locale) : this.localized('無標題', 'Untitled', 'Sem título');
   }
 
   private secondaryTitleFor(item: NewsItem): string {
-    const secondaryLocale: string = this.isEnglish() ? OPEN_DATA_LOCALE_ZH_TW : OPEN_DATA_LOCALE_EN_US;
+    const secondaryLocale: string =
+      this.preferredLocale() === OPEN_DATA_LOCALE_EN_US ? OPEN_DATA_LOCALE_ZH_TW : OPEN_DATA_LOCALE_EN_US;
     const detail: NewsDetail | undefined = InfoFeedService.findDetail<NewsDetail>(item.details, secondaryLocale);
-    return detail?.title ?? '';
+    return detail ? this.openDataText(detail.title, detail.locale) : '';
   }
 
   private firstImage(item: NewsItem): string {
@@ -125,10 +155,12 @@ export struct NewsPage {
       this.hasTopNews = result.data.topNews !== undefined;
       this.newsList = result.data.newsList;
       if (showToast) {
-        AppToast.show(this.getUIContext(), this.localized('新聞已刷新', 'News refreshed'), AppToastType.Success);
+        AppToast.show(this.getUIContext(), this.localized('新聞已刷新', 'News refreshed', 'Notícias atualizadas'),
+          AppToastType.Success);
       }
     } else {
-      this.errorMessage = result.error?.message ?? this.localized('澳大新聞讀取失敗', 'Failed to load UM news');
+      this.errorMessage = result.error?.message ??
+      this.localized('澳大新聞讀取失敗', 'Failed to load UM news', 'Falha ao carregar notícias da UM');
       if (showToast) {
         AppToast.showError(this.getUIContext(), this.errorMessage);
       }
@@ -270,7 +302,7 @@ export struct NewsPage {
     Stack({ alignContent: Alignment.BottomStart }) {
       AppNetworkImage({
         src: this.firstImage(this.topNews),
-        alt: this.localized('新聞圖片', 'News image'),
+        alt: this.localized('新聞圖片', 'News image', 'Imagem da notícia'),
         imageHeight: 210,
         radius: 8
       })
@@ -335,7 +367,7 @@ export struct NewsPage {
       if (this.firstImage(item).length > 0) {
         AppNetworkImage({
           src: this.firstImage(item),
-          alt: this.localized('新聞圖片', 'News image'),
+          alt: this.localized('新聞圖片', 'News image', 'Imagem da notícia'),
           imageHeight: NEWS_CARD_IMAGE_HEIGHT,
           radius: 8
         })
@@ -413,7 +445,7 @@ export struct NewsPage {
           if (this.loading) {
             Column() {
               AppLoading({
-                title: this.localized('正在讀取新聞', 'Loading news'),
+                title: this.localized('正在讀取新聞', 'Loading news', 'A carregar notícias'),
                 message: 'data.um.edu.mo'
               })
             }
@@ -423,9 +455,9 @@ export struct NewsPage {
           } else if (this.errorMessage.length > 0) {
             Column() {
               AppEmptyState({
-                title: this.localized('新聞暫不可用', 'News unavailable'),
+                title: this.localized('新聞暫不可用', 'News unavailable', 'Notícias indisponíveis'),
                 description: this.errorMessage,
-                actionText: this.localized('重試', 'Retry'),
+                actionText: this.localized('重試', 'Retry', 'Tentar novamente'),
                 onAction: (): void => {
                   this.refresh(false);
                 }
