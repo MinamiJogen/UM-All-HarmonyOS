@@ -14,8 +14,7 @@
       "isDynamic": true,
       "isDefault": true,
       "updateEnabled": true,
-      "scheduledUpdateTime": "07:00",
-      "updateDuration": 1,
+      "updateDuration": 0,
       "defaultDimension": "2*2",
       "supportDimensions": [
         "2*2"

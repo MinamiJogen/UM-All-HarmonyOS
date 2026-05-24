@@ -2,7 +2,6 @@ import { common } from '@kit.AbilityKit';
 import { formBindingData, formProvider } from '@kit.FormKit';
 import {
   STORAGE_NEXT_CLASS_FORM_IDS,
-  STORAGE_TIMETABLE,
   STORAGE_WEEK_TIMETABLE
 } from '../common/constants/StorageKeys';
 import { JsonStore } from '../common/storage/JsonStore';
@@ -18,10 +17,13 @@ import {
   CoursePlanFile,
   CoursePlanItem,
   TimetableHomeCacheItem,
-  TimetableSelection,
   WeekTimetableHomeCache
 } from '../models/Course';
 import { CourseDataService } from './CourseDataService';
+
+const MIN_NEXT_REFRESH_MINUTES: number = 5;
+const MAX_NEXT_REFRESH_MINUTES: number = 24 * 60;
+const DEFAULT_NEXT_REFRESH_MINUTES: number = 6 * 60;
 
 export class NextClassCardData {
   hasCourse: string = '0';
@@ -29,6 +31,7 @@ export class NextClassCardData {
   courseCode: string = '暂无课程';
   timeText: string = '--:--';
   locationText: string = '地点未定';
+  nextRefreshMinutes: number = DEFAULT_NEXT_REFRESH_MINUTES;
 }
 
 function normalizeText(value: string | undefined): string {
@@ -62,37 +65,6 @@ function normalizeFormIds(ids: string[] | null): string[] {
   return result;
 }
 
-function normalizeSelectionJsonKeys(text: string): string {
-  return text
-    .replace(/"Course Code"\s*:/g, '"courseCode":')
-    .replace(/"Section"\s*:/g, '"section":');
-}
-
-function normalizeStoredSelections(source: TimetableSelection[] | null): TimetableSelection[] {
-  if (source === null) {
-    return [];
-  }
-
-  let normalizedSource: TimetableSelection[] = [];
-  try {
-    normalizedSource = JSON.parse(normalizeSelectionJsonKeys(JSON.stringify(source))) as TimetableSelection[];
-  } catch (error) {
-    return [];
-  }
-
-  const result: TimetableSelection[] = [];
-  for (let i = 0; i < normalizedSource.length; i++) {
-    const selection: TimetableSelection = {
-      courseCode: normalizeCourseCode(normalizedSource[i].courseCode),
-      section: normalizeSection(normalizedSource[i].section)
-    };
-    if (selection.courseCode.length > 0 && selection.section.length > 0) {
-      result.push(selection);
-    }
-  }
-  return result;
-}
-
 function normalizeWeekCache(text: string): string {
   return text
     .replace(/"Course Code"\s*:/g, '"courseCode":')
@@ -115,14 +87,6 @@ function dayIndex(day: string): number {
   return -1;
 }
 
-function dayAtOffset(today: string, offset: number): string {
-  const index: number = dayIndex(today);
-  if (index < 0) {
-    return '';
-  }
-  return WEEK_DAY_CODES[(index + offset) % WEEK_DAY_CODES.length];
-}
-
 function meetingOffsetFromNow(day: string | undefined, timeFrom: string | undefined, today: string,
   currentMinutes: number): number {
   const sourceIndex: number = dayIndex(normalizeDayCode(day));
@@ -140,6 +104,28 @@ function meetingOffsetFromNow(day: string | undefined, timeFrom: string | undefi
     offset = WEEK_DAY_CODES.length;
   }
   return offset;
+}
+
+function minutesUntilMeeting(day: string | undefined, timeFrom: string | undefined, now: Date): number {
+  const today: string = getDateDayCode(now);
+  const currentMinutes: number = getDateClockMinutes(now);
+  const startMinutes: number = parseClockTimeToMinutes(timeFrom);
+  const offset: number = meetingOffsetFromNow(day, timeFrom, today, currentMinutes);
+  if (offset < 0 || startMinutes < 0) {
+    return DEFAULT_NEXT_REFRESH_MINUTES;
+  }
+
+  return offset * 24 * 60 + startMinutes - currentMinutes;
+}
+
+function normalizeNextRefreshMinutes(minutes: number): number {
+  if (minutes < MIN_NEXT_REFRESH_MINUTES) {
+    return MIN_NEXT_REFRESH_MINUTES;
+  }
+  if (minutes > MAX_NEXT_REFRESH_MINUTES) {
+    return MAX_NEXT_REFRESH_MINUTES;
+  }
+  return Math.ceil(minutes);
 }
 
 function homeCacheItems(cache: WeekTimetableHomeCache, day: string): TimetableHomeCacheItem[] {
@@ -164,10 +150,10 @@ function homeCacheItems(cache: WeekTimetableHomeCache, day: string): TimetableHo
   return cache.SUN;
 }
 
-function makeHomeCourse(source: CoursePlanItem, selection: TimetableSelection, color: number): TimetableHomeCacheItem {
+function makeHomeCourse(source: CoursePlanItem, section: string, color: number): TimetableHomeCacheItem {
   return {
     courseCode: normalizeCourseCode(source.courseCode),
-    section: normalizeSection(selection.section),
+    section: normalizeSection(section),
     courseTitle: source.courseTitle,
     courseTitleChi: source.courseTitleChi,
     day: normalizeDayCode(source.day),
@@ -236,55 +222,13 @@ export class NextClassCardService {
     data.timeText = formatTime(hydratedCourse);
     data.locationText = normalizeText(hydratedCourse.classroom).length > 0 ? normalizeText(hydratedCourse.classroom) :
       '地点未定';
+    data.nextRefreshMinutes = normalizeNextRefreshMinutes(minutesUntilMeeting(hydratedCourse.day,
+      hydratedCourse.timeFrom, new Date()) + 1);
     return data;
   }
 
   private static async readUpcomingCourse(context: common.Context): Promise<TimetableHomeCacheItem | null> {
-    const timetableCourse: TimetableHomeCacheItem | null =
-      await NextClassCardService.readUpcomingCourseFromTimetable(context);
-    if (timetableCourse !== null) {
-      return timetableCourse;
-    }
     return await NextClassCardService.readUpcomingCourseFromHomeCache(context);
-  }
-
-  private static async readUpcomingCourseFromTimetable(context: common.Context): Promise<TimetableHomeCacheItem | null> {
-    const storedSelections: TimetableSelection[] | null =
-      await JsonStore.getOptionalObject<TimetableSelection[]>(context, STORAGE_TIMETABLE);
-    const selections: TimetableSelection[] = normalizeStoredSelections(storedSelections);
-    if (selections.length === 0) {
-      return null;
-    }
-
-    const coursePlanTimeResult = await CourseDataService.getCoursePlanTime(context);
-    if (!coursePlanTimeResult.ok || !coursePlanTimeResult.data) {
-      return null;
-    }
-
-    const today: string = getDateDayCode(new Date());
-    const currentMinutes: number = getDateClockMinutes(new Date());
-    let result: TimetableHomeCacheItem | null = null;
-    let resultRank: number = 8 * 24 * 60;
-    const courses: CoursePlanFile = coursePlanTimeResult.data;
-    for (let selectionIndex = 0; selectionIndex < selections.length; selectionIndex++) {
-      const selection: TimetableSelection = selections[selectionIndex];
-      for (let courseIndex = 0; courseIndex < courses.Courses.length; courseIndex++) {
-        const source: CoursePlanItem = courses.Courses[courseIndex];
-        if (normalizeCourseCode(source.courseCode) !== selection.courseCode ||
-          normalizeSection(source.section) !== selection.section) {
-          continue;
-        }
-
-        const startMinutes: number = parseClockTimeToMinutes(source.timeFrom);
-        const offset: number = meetingOffsetFromNow(source.day, source.timeFrom, today, currentMinutes);
-        const rank: number = offset * 24 * 60 + startMinutes;
-        if (offset >= 0 && rank < resultRank) {
-          result = makeHomeCourse(source, selection, selectionIndex);
-          resultRank = rank;
-        }
-      }
-    }
-    return result;
   }
 
   private static async hydrateCourseFromPlanTime(context: common.Context,
@@ -303,10 +247,7 @@ export class NextClassCardService {
     for (let i = 0; i < courses.Courses.length; i++) {
       const source: CoursePlanItem = courses.Courses[i];
       if (isSameCourseMeeting(source, course, day)) {
-        return makeHomeCourse(source, {
-          courseCode: normalizeCourseCode(course.courseCode),
-          section: normalizeSection(source.section)
-        }, course.color);
+        return makeHomeCourse(source, source.section ?? course.section, course.color);
       }
     }
     return course;
@@ -328,21 +269,14 @@ export class NextClassCardService {
 
     const today: string = getDateDayCode(new Date());
     const currentMinutes: number = getDateClockMinutes(new Date());
+    const items: TimetableHomeCacheItem[] = homeCacheItems(cache, today) ?? [];
     let result: TimetableHomeCacheItem | null = null;
-    let resultRank: number = 8 * 24 * 60;
-    for (let offset = 0; offset <= WEEK_DAY_CODES.length; offset++) {
-      const day: string = dayAtOffset(today, offset);
-      const items: TimetableHomeCacheItem[] = homeCacheItems(cache, day) ?? [];
-      for (let i = 0; i < items.length; i++) {
-        const startMinutes: number = parseClockTimeToMinutes(items[i].timeFrom);
-        if (startMinutes < 0 || (offset === 0 && startMinutes <= currentMinutes)) {
-          continue;
-        }
-        const rank: number = offset * 24 * 60 + startMinutes;
-        if (rank < resultRank) {
-          result = copyHomeCourseWithDay(items[i], day);
-          resultRank = rank;
-        }
+    let resultStartMinutes: number = 24 * 60;
+    for (let i = 0; i < items.length; i++) {
+      const startMinutes: number = parseClockTimeToMinutes(items[i].timeFrom);
+      if (startMinutes > currentMinutes && startMinutes < resultStartMinutes) {
+        result = copyHomeCourseWithDay(items[i], today);
+        resultStartMinutes = startMinutes;
       }
     }
     if (result === null) {
@@ -392,8 +326,18 @@ export class NextClassCardService {
     const data: NextClassCardData = await NextClassCardService.loadData(context);
     try {
       await formProvider.updateForm(id, formBindingData.createFormBindingData(makeBindingRecord(data)));
+      await NextClassCardService.scheduleNextRefresh(id, data.nextRefreshMinutes);
     } catch (error) {
       Logger.warn('Next class form update failed: ' + id + ', ' + String(error));
+    }
+  }
+
+  private static async scheduleNextRefresh(formId: string, minutes: number): Promise<void> {
+    const nextMinutes: number = normalizeNextRefreshMinutes(minutes);
+    try {
+      await formProvider.setFormNextRefreshTime(formId, nextMinutes);
+    } catch (error) {
+      Logger.warn('Next class form next refresh failed: ' + formId + ', ' + String(error));
     }
   }
 
